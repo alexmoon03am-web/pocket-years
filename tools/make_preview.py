@@ -6,8 +6,7 @@ import json
 import re
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
-def preview(out):
-    assets=ROOT/'app/src/main/assets'
+def preview(out, assets=ROOT/'app/src/main/assets'):
     source=(assets/'index.html').read_text()
     files={f.stem:'data:image/png;base64,'+base64.b64encode(f.read_bytes()).decode() for f in sorted((assets/'art').glob('*.png'))}
     scripts=[(assets/name).read_text() for name in re.findall(r'<script defer src="([^"]+)"></script>',source)]

@@ -1,0 +1,122 @@
+test_backup_picker.log
+PASS native document picker export/import, local origin, UTF-8, stalled chooser, process recreation, cancellation, invalid provider, oversize rejection and atomic pending files.
+
+test_balance_continuity.log
+PASS v1.1 import, future deed and tuition loan, custom faith, family, business, financial history, recovery, relationship pacing, employment reference, and reunited institutional accounts.
+
+test_balance_ui.log
+PASS future prices, receipts and cash deltas; past-currency ledger; Android stale confirmations and rapid taps; saved realism controls and household assistance.
+
+test_calendar_ui.log
+PASS all eleven calendar styles, six start periods, exact-year and settlement selection, saved visual overrides and birthday transition.
+PASS historical hobby actions and anniversary achievement awards in 1300 and 1850.
+
+test_career_balance.log
+PASS job eligibility, progression and preserved contracts, once-yearly pay reviews, transfers, qualifications, teen shifts, business capacity and compensation.
+
+test_expansion.log
+PASS year-stable specialist markets, regional inflation, vehicle financing and trade-in, insurance, bulk service, renovation, tenants, refinancing, manual bills and portfolio accounting.
+PASS domestic and international moves, independent relatives, foreign deeds, work and savings visas, expired work authorization, continuous residence and multiple citizenships.
+PASS specialized professional actions, credentials, local salary, new employer and team, family company manager payroll, balanced statements, recession layoffs and insolvency.
+PASS family tree, grandchildren, loan memories, reconciliations, inherited firms, creditor priority, weighted and witnessed wills, probate cases, successor identity, location and profession, hobbies and ambitions.
+PASS actual 0.7.1 save, archive and pending event migration, exact expanded state round trips, independent slots, recoverable corruption, bad checksums, invalid files, quota failure, and offline transfer.
+
+test_expansion_ui.log
+PASS shipped expansion menus, complete icon sets, financing confirmation and double tap, asset management, formation and contracts, family profiles, careers, hobbies, local world and immigration.
+PASS character slots, original-slot manual save, native chooser bridge, import preview and cancellation, damaged file rejection, recovery and standalone HTML file export/import.
+
+test_faith_continuity.log
+PASS v1.0 migration, historical encounters, founder charter and 21 successions over 801 annual ticks; peak checkpoint 446765 characters.
+
+test_faith_creation.log
+PASS faith creation controls in every starting era, family and exploring choices, birth-year changes and atomic rejection of invalid background.
+
+test_faith_institutions.log
+PASS institutional land, six eras, construction, treasury conservation, personal and movement funding, regional presence, named NPC payroll, actual services, repairs, expansion, wealthy NPC founders, stewardship succession, saved properties and idempotent annual accounting.
+
+test_faith_legacy.log
+PASS household customs, independent heir beliefs, five governance models, nomination, vacancy, museum charters, archives and backup round trips.
+PASS 500 birthdays, 13 natural successions, earlier founder/archive/charter preserved, 306969-byte backup.
+
+test_faith_movements.log
+PASS founding, original charter, voluntary outreach, regional reach, personal and treasury accounting, reform, branches, reunion, annual decline, permanent milestones and deterministic saves.
+PASS founder death, descendant-led revival, observed conversions, historical shocks, service-funded outreach, 25-year censuses and independent regional schism.
+
+test_faith_personal.log
+PASS birth choice, regional and dated beliefs, practice, conversion, paid ministry, family ceremonies and trust, successor identity, NPC vocations, deterministic updates and save validation.
+
+test_faith_scale.log
+PASS membership refusal, extinction, saturation and regional disruption. Million-member milestone after 713 years, 21 successions and 253 declining years in 900 birthdays.
+
+test_faith_sheets.log
+Faith sheets: age gates, practice, affiliation, founding, charter, reform defaults, rename, succession, institution funds, archived outlook, era checks and full paged millennial movement histories passed.
+
+test_financial_hardship.log
+PASS sustainable household credit, means-tested support, recovery, settlements, insolvency, secured delinquency, future youth payroll, real asset prices and 940-year appraisals.
+
+test_future_epochs.log
+PASS 2080/2200/3000 gameplay, two birthday boundaries, old future deeds, medical care, fares, supply contracts and single settlement of breakthroughs.
+
+test_future_purchasing_power.log
+PASS London purchasing power for 36 seeds at each of 2049, 2050, 2080, 2200 and 3000; continuous contract and deed, city variation, entry pay and 21–22% median manager surplus.
+
+test_game.log
+PASS 720 completed lives, 53621 birthdays, 597 identical serialized futures. Oldest age 110.
+PASS 164 events, 497 individually checked choices. 99 distinct events appeared during play.
+PASS zero- and two-event years, exact outcome deltas, locked decisions, seed determinism, old saves, teen payroll and bounded stats.
+
+test_geography.log
+PASS 4564 real destinations in 243 countries and territories, all 195 UN member and observer states, worldwide births, searches, residence changes and local saves.
+PASS domestic and international moves, fee and annual limits, household and child birthplace, local housing, property abroad, and an exact v0.6.0 save upgrade.
+
+test_historical_continuity.log
+PASS public v0.8.1 save imports, preserves its calendar, cash, journal and settings, and resumes.
+PASS 900 consecutive birthdays across all six eras, 25 generations, 36 save imports and 2 naturally ended lines; largest export 483959 bytes.
+
+test_historical_health.log
+PASS era, age, hardship, local events, work, treatment, childbirth, survivor estates and realism save settings.
+PASS same-year posthumous birth, widowed NPC parentage, remarriage and earlier family links.
+
+test_history_dynasty.log
+PASS family museum, conservation, provenance, time capsules, bequests, corruption handling and 21 successions across 900 consecutive birthdays (459659 UTF-8 bytes).
+
+test_history_economy.log
+Historical economy verified across nine dates, payroll, pricing, assets, companies, regional offerings, succession-ready holdings, and save round trips.
+
+test_history_gameplay_ui.log
+PASS calendar 1252 jobs, asset purchase, museum accession, relationships archive, period activities
+PASS calendar 1562 jobs, asset purchase, museum accession, relationships archive, period activities
+PASS calendar 1832 jobs, asset purchase, museum accession, relationships archive, period activities
+PASS calendar 1932 jobs, asset purchase, museum accession, relationships archive, period activities
+PASS calendar 2022 jobs, asset purchase, museum accession, relationships archive, period activities
+PASS calendar 2112 jobs, asset purchase, museum accession, relationships archive, period activities
+PASS direct historical and early-web technology guards, era-appropriate adoption and courtship
+
+test_history_world.log
+Historical geography, regional events, damages, relocation, dates and 2,600 years of local history passed.
+
+test_interface.log
+PASS worldwide birth and immigration menus, full country selection, city search, Android-style Back, moving fee, old saves, residence history, property abroad and the standalone browser edition.
+PASS all fourteen storefronts in Assets, Android-style Back, detail views, date-stable stock, double-tap purchase, sale, age-up, gated dealers, stale links and offline storefronts.
+PASS five-button dock, first-person biography, age statements, age-appropriate menus, campus actions, declined scholarship retry and random restart.
+PASS shipped APK UI and standalone HTML, icon assets, v1/v3/v4 save migration, blocking input, browser Back, resume, two-event queues, exact deltas and teen wages.
+PASS all dock sections, motion settings, gestures, manual save/load, health and gambling, dating, driving, interviews, degree, NPC profiles, adoption, mortgage, fund, court and custody.
+PASS tombstone, all three replay controls, surviving child ID, current age, inherited home, debt and trust.
+
+test_life_systems.log
+PASS independent adulthood milestones, persistent school/work rosters, bound contact outcomes, rotating jobs and all three university funding routes.
+PASS complete player/NPC schema, progressive taxes, gated schools and jobs, wage boundary and professional qualifications.
+PASS mortgages, depreciation, repairs, investment yield, debt, persistent NPCs, relationships, parent and spouse estates and in-kind child succession.
+PASS injury/chronic progression, addiction recovery, gambling, crime choices, sentencing, prison release and manual save/load.
+
+test_market.log
+PASS 14 shops, 48 home types, 64 vehicle types, 128 fictional models, new and used inventory, ages, and guaranteed annual turnover.
+PASS listing identity, asking prices, save and reload, independent mortgages, repair, resale, mileage, inheritance and exact v0.5.0 financial migration.
+
+test_pets_relationships.log
+PASS all 100 species-specific breed choices, adoption fees, care costs, seeded lifespans, labels in journal and backup, prior name-only calls and authentic 0.8.0 pets.
+PASS one journal entry per bulk visit, exact equivalence with individual visits, trust and loyalty, eligibility, repeat limits, birthday reset and pending-decision guards.
+PASS Android and standalone UI paths for breed filtering, naming, adoption, existing pets, double taps, group actions, autosaves and restored visit limits.
+
+test_timeline.log
+PASS exact year selection, historical birthplaces, six era starts, all five era boundaries, legacy birth customization and deterministic replay.

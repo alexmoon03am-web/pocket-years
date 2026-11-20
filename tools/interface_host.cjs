@@ -83,7 +83,7 @@ function start(store=new Map(),opts={}){
   function tick(next=600){for(let i=0;i<next;i+=16){now+=16;const fns=[...frames.values()];frames.clear();fns.forEach(f=>f(now));for(const a of [...animations])if(a.end<=now)a.finish();}}
   function visible(){const mount=doc.getElementById('overlay').children.find(el=>!el.a.inert&&el.getAttribute('aria-hidden')!=='true');return mount||doc.getElementById('shell');}
   function button(ac,key){return visible().querySelectorAll('button[data-do]').find(b=>b.dataset.do===ac&&(key===undefined||b.dataset.key===String(key)));}
-  function dispatch(target,detail=1){docEvents.click({target,detail});}
+  function dispatch(target,detail=1,timeStamp){docEvents.click({target,detail,timeStamp});}
   function click(ac,key){const b=button(ac,key);assert(b,'missing button: '+ac+'/'+key+' '+visible().textContent.slice(0,110));assert(!b.disabled,'disabled button: '+ac+'/'+key);active=b;dispatch(b);}
   function change(id,value){const target=doc.getElementById(id);target.value=value;docEvents.change({target});}
   function input(id,value){const target=doc.getElementById(id);target.focus();target.value=value;docEvents.input({target});}

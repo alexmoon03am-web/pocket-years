@@ -299,6 +299,16 @@ main{flex:1 1 0;min-height:0;padding:0;display:flex;overflow:hidden}
   --green:#374e78;--light-green:#dee5f7;--edition-head:#25334f;--edition-trim:#7696ba;
   --edition-serif:"Space Mono",var(--mono);--edition-edge:solid;--edition-weight:1px;
 }
+[data-theme="planetary"]{
+  --page:#e7eeea;--card:#f8faf3;--ink:#183f3c;--text:#2b4643;--muted:#486660;--line:#aabfb2;
+  --green:#215c50;--light-green:#d4eadb;--edition-head:#204e48;--edition-trim:#78b9a1;
+  --edition-serif:Georgia,serif;--edition-edge:double;--edition-weight:3px;
+}
+[data-theme="stellar"]{
+  --page:#f0eaf5;--card:#fbf8fd;--ink:#30274a;--text:#483c5a;--muted:#695977;--line:#cbbdd6;
+  --green:#57406f;--light-green:#e7dcf0;--edition-head:#30223e;--edition-trim:#c4a0cb;
+  --edition-serif:"Space Mono",var(--mono);--edition-edge:solid;--edition-weight:2px;
+}
 html[data-theme]:not([data-theme="modern"]) .mast,
 html[data-theme]:not([data-theme="modern"]) .command-deck{background:var(--card);border-color:var(--line)}
 html[data-theme]:not([data-theme="modern"]) .vitals{background:var(--page);border-color:var(--line)}
@@ -350,6 +360,16 @@ html[data-theme="future"] #feed-scroll,.time-capsule[data-theme="future"]{
   background-image:linear-gradient(90deg,#536b9220 1px,transparent 1px),linear-gradient(#536b9212 1px,transparent 1px);background-size:24px 24px;
 }
 html[data-theme="future"] .commands{border-radius:3px 15px 3px 15px}
+html[data-theme="planetary"] #feed-scroll,.time-capsule[data-theme="planetary"]{
+  background-image:repeating-radial-gradient(ellipse at 100% 0%,transparent 0 26px,#3567560e 27px 28px,transparent 29px 51px)
+}
+html[data-theme="planetary"] .commands{border-radius:16px 6px 16px 6px}
+html[data-theme="planetary"] .year-label h2{border-bottom:2px double var(--edition-trim)}
+html[data-theme="stellar"] #feed-scroll,.time-capsule[data-theme="stellar"]{
+  background-image:radial-gradient(circle at 3px 3px,#75508b29 1px,transparent 1.4px);background-size:27px 29px
+}
+html[data-theme="stellar"] .commands{border-radius:2px;border-inline-start:3px solid var(--edition-trim)}
+html[data-theme="stellar"] .life-year+.life-year{border-top:1px dashed var(--line)}
 html[data-motion="full"] :is(.app,.mast,.vitals,.command-deck,.identity,#feed-scroll,.sheet,.journal-line){
   transition:background-color 260ms ease,color 190ms ease,border-color 260ms ease;
 }

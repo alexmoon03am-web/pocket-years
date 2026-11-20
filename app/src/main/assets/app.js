@@ -23,7 +23,7 @@
   const navOrder=['school','career','assets','life','people','activities','journal'];
   
   const X=E.expansion, extra=window.PocketExpansionUI.create({E,row,detail,subhead,meter,esc,cash,button:actionButton});
-  const historicalUI=window.PocketHistoryUI.create({E,row,detail,subhead,esc,cash,button:actionButton});
+  const historicalUI=window.PocketHistoryUI.create({E,row,detail,subhead,esc,cash,appraisalDetail,button:actionButton});
   const faithUI=window.PocketFaithUI.create({E,row,detail,subhead,meter,esc,cash,button:actionButton});
   const faithLink=()=>row('sheet','faith-home','Religion & beliefs','Explore beliefs, practices and communities.','book');
   const communityPropertyLink=()=>row('sheet','faith-institutions','Community land & institutions','Review local deeds, staff and operating accounts.','home');
@@ -39,8 +39,12 @@
     return occupationTabs('career')+pageTitle('Occupation',E.occupation(life))+noteHtml()+historicalUI.rows(life,'work')+
       subhead('Independent work')+newEconomy('business','Enterprises','Open a business or manage the family trade.');
   }
+  function budgetAlert(b){
+    if(!b.warnings?.length)return '';
+    return row('sheet','budget','Review your annual budget',b.warnings.join(' '),'wallet');
+  }
   function periodAssets(){
-    return pageTitle('Assets',historicalUI.location(life.town,E.calendar(life)))+noteHtml()+detail('Net worth',cash(W.netWorth(life)))+detail('Available cash',cash(life.cash))+
+    return pageTitle('Assets',historicalUI.location(life.town,E.calendar(life)))+noteHtml()+detail('Net worth',cash(W.netWorth(life)))+detail('Available cash',cash(life.cash))+budgetAlert(S.budget(life))+
       '<div class="commands">'+newEconomy('market','Local market','Land, transport, goods and buildings on offer this year.')+
       newEconomy('owned','Your possessions','Review condition, restore or sell your holdings.')+newEconomy('business','Enterprises','Manage the family business.')+
       newEconomy('museum','Family Museum','Exhibit heirlooms and trace their owners.')+row('sheet','budget','Annual accounts','Income, obligations and household costs.','wallet')+
@@ -58,7 +62,7 @@
   let jobFilter='eligible';
   let note=null, historyLimit=12, journalLimit=16, journalFilter='highlights';
   let draft=null, movingTown=null, childDraft='', previousStats=null, previousLife=null, activeRoute=null, openPanel=null, returnFocus=null;
-  let fallbackHistory=null, pendingBack=null, drag=null;
+  let fallbackHistory=null, pendingBack=null, drag=null, lastAgeTap=null;
   function readRoute(){
     const hash=fallbackHistory?fallbackHistory[fallbackHistory.length-1]:location.hash;
     const [tab,sheet]=hash.slice(1).split('/');
@@ -136,7 +140,7 @@
     if(!entries.length)return '';
     return '<div class="chips">'+entries.map(([k,v])=>{
       const m=['cash','debt','netWorth','trust','annualWages','annualPension','annualSide','fund'].includes(k),p=k.startsWith('bond/')?Object.values(life.people).find(n=>n.id===k.slice(5)):null;
-      const label=k==='cash'?'Bank':p?p.name+' relationship':k.startsWith('bond/')?'Relationship':metricNames[k]||k;
+      const label=k==='cash'?(earlier()&&E.calendar(life)<1900?'Cash':'Bank'):p?p.name+' relationship':k.startsWith('bond/')?'Relationship':metricNames[k]||k;
       return '<span class="chip '+(v<0?'minus':'')+'">'+(v<0?'−':'+')+(m?cash(Math.abs(v)):Math.abs(v))+' '+esc(label)+'</span>';
     }).join('')+'</div>';
   }
@@ -310,7 +314,7 @@
     const itemName=([id,a])=>Shop.title(Shop.ownedItem(id,a));
     owned.sort((a,b)=>assetSort==='value'?b[1].value-a[1].value:assetSort==='condition'?a[1].condition-b[1].condition:assetSort==='name'?itemName(a).localeCompare(itemName(b)):b[1].at-a[1].at);
     const jobsHint=life.age<18 && !life.world.partJob?'<p class="feature-detail">'+(life.age<14?'Part-time jobs open at age 14.':'Open Occupation, then Jobs, to take a part-time job.')+'</p>':'';
-    let html=pageTitle('Assets','What you own and what it is worth.')+'<section class="feature money"><div class="eyebrow">'+icon('coin')+'Net worth</div><h2>'+cash(W.netWorth(life))+'</h2><div class="money-pair"><span>Bank balance<strong>'+cash(life.cash)+'</strong></span><span>Yearly income<strong>'+cash(life.ended?0:budget.gross)+'</strong></span></div>'+jobsHint+'</section>'+noteHtml();
+    let html=pageTitle('Assets','What you own and what it is worth.')+'<section class="feature money"><div class="eyebrow">'+icon('coin')+'Net worth</div><h2>'+cash(W.netWorth(life))+'</h2><div class="money-pair"><span>Bank balance<strong>'+cash(life.cash)+'</strong></span><span>Yearly income<strong>'+cash(life.ended?0:budget.gross)+'</strong></span></div>'+jobsHint+'</section>'+noteHtml()+budgetAlert(budget);
     html+=newEconomy('museum','Family Museum','Exhibit and conserve the family collection.')+communityPropertyLink();
     if(eraExtras()&&life.age>=18)html+=newEconomy('market',future()?'Future market':'Specialty market','Technology, transportation and living spaces.')+newEconomy('owned','Manage period holdings','Restore or sell inherited and future holdings.');
     else if(E.historyEconomy.actions(life,'owned').length)html+=newEconomy('owned','Manage period holdings','Restore or sell inherited holdings.');
@@ -344,6 +348,9 @@
   }
   function parentSheet(tab,key){
     if(key==='faith-encounter')return 'faith-home';
+    if(key?.startsWith('relief-'))return 'household-help';
+    if(key==='household-help')return 'budget';
+    if(key==='realism')return 'menu';
     if(key?.startsWith('faith-'))return faithUI.parent(key);
     if(key?.startsWith('hist-review~')){
       const area=key.split('~')[1];
@@ -411,7 +418,7 @@
     }
     if(!life.ended&&life.age>=5)html+=subhead('Friendship')+'<div class="commands">'+S.options(life,'company').map(option).join('')+'</div>';
     if(!life.ended && life.age>=14){
-      html+=subhead('Love and family')+'<div class="commands">'+row('sheet','date','Go on a date',earlier()?'Meet someone on a walk through town.':life.age<18?'Meet someone for a walk after school.':'Meet someone over coffee for $35.','heart',W.dateReason(life));
+      html+=subhead('Love and family')+'<div class="commands">'+row('sheet','date','Go on a date',earlier()?'Meet someone on a walk through town.':life.age<18?'Meet someone for a walk after school.':'Meet someone over coffee for '+cash(W.dateCost(life))+'.','heart',W.dateReason(life));
       if(life.age>=18)html+=S.options(life,'family').map(option).join('');
       if(life.age>=21)html+=row('sheet','adopt','Adopt a child','Choose a name and prepare a room. Costs '+cash(W.familyCost(life))+'.','baby',W.familyReason(life));
       html+='</div>';
@@ -422,7 +429,7 @@
     if(earlier())return periodActivities()+faithLink();
     const age=life.age,groups=life.sim.prison?['custody','health']:['leisure','health',...(age>=13&&(!life.sim.timeline?.historicalRules||E.calendar(life)>=2004)?['fame']:[]),...(age>=16?['travel']:[]),...(age>=18?['nightlife','pets','crime']:[])];
     return pageTitle('Activities','Choose how to spend the year.')+noteHtml()+(eraExtras()&&life.age>=4?newEconomy('activities',future()?'Future activities':'Digital life','Technology and leisure in your lifetime.'):'')+'<div class="commands">'+faithLink()+groups.map(hubRow).join('')+extra.link('world','Local economy','Prices and employment in '+G.cities[life.town].name+'.','world-index')+(age>=5&&!life.sim.prison?extra.link('hobbies','Hobbies & ambitions','Practice a skill or pursue a life goal.','sprout'):'')+
-      (!life.sim.prison?row('tab','people','Spend time with family','Choose a relative to visit.','people')+(!life.ended&&life.age>=18&&(!life.sim.timeline?.historicalRules||E.calendar(life)>=2009)?row('sheet','matches','Dating app','Browse three local profiles. An introduction costs $15.','heart',W.isPartner(life)?'In a relationship':''):'')+
+      (!life.sim.prison?row('tab','people','Spend time with family','Choose a relative to visit.','people')+(!life.ended&&life.age>=18&&(!life.sim.timeline?.historicalRules||E.calendar(life)>=2009)?row('sheet','matches','Dating app','Browse three local profiles. An introduction costs '+cash(W.introductionCost)+'.','heart',W.isPartner(life)?'In a relationship':''):'')+
       (life.age<18?row('tab','school','Study or find a shift','School, clubs and teen work.','school'):''):'')+'</div>'+
       (life.age>=12?'<div class="social-summary after">'+meter('Reputation',life.world.reputation,'spark')+'</div>':'');
   }
@@ -484,7 +491,7 @@
   }
   function makeDraft(edit){
     const l=edit?life:E.makeLife({birthYear:2026}),year=edit?l.born:2026;
-    return {edit,faithId:edit?(l.sim.faith?.backgroundChoice||l.sim.faith?.id||'family'):'family',name:l.name,town:l.town,skin:l.skin,thread:l.thread,identity:l.sim.identity,birthYear:year,era:eraUI.eraForYear(year).id,legacyBirth:edit&&!l.sim.timeline?.historicalRules};
+    return {edit,realism:E.year.realism(l),faithId:edit?(l.sim.faith?.backgroundChoice||l.sim.faith?.id||'family'):'family',name:l.name,town:l.town,skin:l.skin,thread:l.thread,identity:l.sim.identity,birthYear:year,era:eraUI.eraForYear(year).id,legacyBirth:edit&&!l.sim.timeline?.historicalRules};
   }
   function birthLocation(d){
     if(d.birthYear<2000&&!d.legacyBirth){
@@ -539,11 +546,12 @@
     return '<form id="character-form">'+(edit?'':'<p class="sheet-intro">Your current character and journal will move to Past lives.</p>')+
       birthFields(draft)+'<label for="person-name">Name</label><div class="input-row"><input id="person-name" maxlength="32" value="'+esc(draft.name)+'" required autocomplete="off">'+actionButton('shuffle','','','icon-button','dice').replace('class="icon-button"','class="icon-button" aria-label="Randomize character"')+'</div>'+
       '<label for="identity">Identity</label><select id="identity">'+optionsHtml(Object.entries(S.identities),draft.identity)+'</select>'+ '<div id="birth-location">'+birthLocation(draft)+'</div>'+
+      '<label for="birth-realism">Health &amp; mortality</label><select id="birth-realism">'+optionsHtml([['guided','Guided'],['historical','Historical Realism']],draft.realism)+'</select>'+
       '<label for="birth-faith">Belief background</label><select id="birth-faith">'+beliefOptions(draft)+'</select><p class="form-label">Portrait</p><div class="swatches">'+[0,1,2,3].map(n=>'<button type="button" data-do="swatch" data-key="'+n+'" aria-label="Portrait '+(n+1)+'" aria-pressed="'+(n===draft.skin)+'">'+image('person-'+n+'-0')+(n===draft.skin?'<span class="swatch-check">'+icon('check')+'</span>':'')+'</button>').join('')+'</div>'+
       '<div class="sheet-actions">'+actionButton('close','','Cancel','secondary','close')+'<button type="submit" class="primary">'+icon(edit?'save':'sprout')+(edit?'Save character':'Start life')+'</button></div></form>';
   }
   function readDraft(){
-    if(draft&&byId('person-name')){draft.faithId=byId('birth-faith').value;draft.name=byId('person-name').value;draft.town=byId('town').value;draft.identity=byId('identity').value;}
+    if(draft&&byId('person-name')){draft.realism=byId('birth-realism').value;draft.faithId=byId('birth-faith').value;draft.name=byId('person-name').value;draft.town=byId('town').value;draft.identity=byId('identity').value;}
   }
   function profileBody(){
     const club={music:'Jam session',running:'Running club',zine:'School zine'}[life.flags.club];
@@ -578,6 +586,13 @@
     body+=extra.link('relative','Trust & shared history','Memories, promises and family decisions.','family-tree',key);
     return {title:p.fullName,tag:label,body};
   }
+  function appraisalDetail(l,id){
+    const current=l.world.owned[id],next=W.appraisal(l,id,l.age+1);
+    if(!current||!next)return '';
+    const rate=current.value>0?(next.value/current.value-1)*100:0;
+    const estimate=E.historyEconomy.money(l,next.value,l.age+1);
+    return detail('Next birthday appraisal',estimate+' · '+(rate>0?'+':'')+rate.toFixed(1)+'% in value · '+next.condition+'% condition before repairs.');
+  }
   function assetView(id,side){
     const own=life.world.owned[id],isBuy=side==='buy';
     if(!isBuy&&own?.listing?.historical)return historicalUI.holding(life,id);
@@ -593,8 +608,8 @@
     }else if(item.listing){
       body+=detail('Vehicle details',Shop.summary(item,own))+detail('Condition',condition+'% condition'+(isBuy?(item.newCar?' · New, with delivery mileage.':' · Used.'):'.'));
       if(item.type==='van')body+=detail('Camper van','Take road trips or host a camper supper.');
-    }else body+=detail(isBuy?'Ownership':'Acquired at age '+own.at,item.detail);
-    body+=detail('Resale',property?(life.sim.expansion?'This year’s local change is '+((item.change+X.economy.local(life,item.town||life.town).appreciation)*100).toFixed(1)+'% before condition adjustments.':'Normal annual appreciation is '+Number((item.change*100).toFixed(1))+'%. Poor condition reduces it.'):'Depreciates each year and keeps a minimum trade-in value.');
+    }else body+=detail(isBuy?'Ownership':'Acquired at age '+own.at,item.category==='Property'?'Current annual rent is '+cash(W.assetRent(life,id,own||{condition:100,share:1}))+'.':item.detail);
+    body+=isBuy?detail('Initial resale value',cash(Math.round(item.price*item.resale))):appraisalDetail(life,id);
     if(own){
       if(property&&!item.listing&&G.cities[item.town])body+=detail('Property location',G.label(item.town));
       body+=detail('Ownership',Math.round((own.share||1)*100)+'% ownership · '+condition+'% condition')+
@@ -632,13 +647,13 @@
     if(earlier()&&!['pets','crime','custody'].includes(group))return null;
     if(group==='fame'&&life.sim.timeline?.historicalRules&&E.calendar(life)<2004)return null;
     if(group==='travel')return {title:h[0],body:detail('Current home',G.label(life.town))+'<div class="commands">'+
-      row('sheet','license','Take the driving test',life.age<18?'Free for students.':'The exam costs $30.','car',S.licenseReason(life))+
-      row('sheet','destinations','Immigrate or move city','Choose a country and city. Moving costs '+cash(S.movingFee)+'.','map',life.ended?'Life complete':life.age<18?'Opens at 18':'')+'</div>'};
+      row('sheet','license','Take the driving test',S.licenseFee(life)?'The exam costs '+cash(S.licenseFee(life))+'.':'The test is free before age 18.','car',S.licenseReason(life))+
+      row('sheet','destinations','Immigrate or move city',future()?'Fares depend on the route and local transit.':'Choose a country and city. Moving costs '+cash(S.moveFare(life))+'.','map',life.ended?'Life complete':life.age<18?'Opens at 18':'')+'</div>'};
     let intro='';
     if(group==='invest')intro=detail('Invested capital',cash(life.sim.fund)+' · Estimated annual yield '+cash(S.budget(life).yieldIncome));
     if(group==='health'){
       const s=life.sim,labels=s.illnesses.map(c=>c.name+' · '+(c.chronic?'chronic':'temporary')+' · severity '+c.severity+'%').concat(s.injuries.map(i=>i.name+' · injury '+i.severity+'%'),s.addictions.map(a=>a.substance+' · '+(a.sober?'in recovery':'active')+' · severity '+a.severity+'%'));
-      intro=detail('Health record',labels.join(' / ')||'No diagnosed conditions.');
+      intro=detail('Health record',labels.join(' / ')||'No diagnosed conditions.')+row('sheet','realism','Health & mortality','Risk factors and access to care.','heart');
     }
     if(group==='education'){
       const p=life.sim.program;
@@ -690,7 +705,7 @@
   function doView(id){
     const a=S.actions[id];if(!a||!needsConfirm(id))return null;
     if(a.group==='pets')return petForm(id);
-    let desc=a.desc;
+    let desc=S.description(life,id);
     if(id.startsWith('course-')){
       const p=S.programs[id.slice(7)];
       const options=[['scholarship','Apply for a scholarship','Grades, smarts and discipline affect the decision.','school'],['cash','Pay tuition','Pay '+cash(p.fee)+' from your bank.','wallet'],['loan','Take a student loan','Borrow '+cash(p.fee)+' at 4% annual interest.','letter']];
@@ -703,12 +718,15 @@
     return {title:a.title,body:'<p class="sheet-intro">'+esc(desc)+'</p>'+body};
   }
   function budgetLines(b){
-    const values=[['Salary or part-time wages',b.wages],['Pension',b.pension||0],['Side work',b.side||0],['Fund yield',b.yieldIncome||0],['Rental income',b.rent],['Business distributions',b.businessIncome||0],['Business losses',-(b.operatingLoss||0)],['Insurance',-(b.insurance||0)],['Management fees',-(b.management||0)],['Lifestyle',-(b.lifestyle||0)],['Tax',-b.tax],['Rent',-(b.housing||0)],['Living costs',-b.living],['Dependent children',-b.dependents],['Property, vehicles and pets',-b.upkeep],['Loan payments',-b.payment],['Change in bank balance',b.net]];
-    const historic=life.sim.timeline?.historicalRules&&(b.year||E.calendar(life))<2000;
+    const previous=Number.isInteger(b.year),age=previous?(b.earnedAge??Math.max(0,b.year-life.born-1)):life.age;
+    const town=b.town||(previous?S.townAtAge(life,age):life.town);
+    const amount=n=>E.historyEconomy.money(life,n,age,town);
+    const values=[['Salary or part-time wages',b.wages],['Pension',b.pension||0],['Side work',b.side||0],['Fund yield',b.yieldIncome||0],['Rental income',b.rent],['Business distributions',b.businessIncome||0],['Household support',b.support||0],['Business losses',-(b.operatingLoss||0)],['Insurance',-(b.insurance||0)],['Management fees',-(b.management||0)],['Lifestyle',-(b.lifestyle||0)],['Tax',-b.tax],['Rent',-(b.housing||0)],['Living costs',-b.living],['Dependent children',-b.dependents],['Property, vehicles and pets',-b.upkeep],['Loan payments',-b.payment],['New unpaid bills',b.arrears||0],['Costs left unmet',b.uncovered||0],['Change in bank balance',b.net]];
+    const historic=life.sim.timeline?.historicalRules&&(life.born+age)<2000;
     const periodLabels={'Change in bank balance':'Change in cash','Property, vehicles and pets':'Upkeep','Salary or part-time wages':'Wages','Tax':'Taxes and dues','Business distributions':'Trading income'};
     const essential=['Salary or part-time wages','Tax','Living costs','Change in bank balance'];
     const lines=historic?values.filter(([label,n])=>n||essential.includes(label)).map(([label,n])=>[periodLabels[label]||label,n]):values;
-    return '<dl class="ledger">'+lines.map(([label,n])=>'<div><dt>'+esc(label)+'</dt><dd>'+cash(n)+'</dd></div>').join('')+'</dl>';
+    return '<dl class="ledger">'+lines.map(([label,n])=>'<div><dt>'+esc(label)+'</dt><dd>'+amount(n)+'</dd></div>').join('')+'</dl>';
   }
   function budgetView(){
     const s=life.sim,b=S.budget(life),last=s.lastBudget;
@@ -716,11 +734,27 @@
     const loans=Object.entries(s.loans).map(([id,l])=>loanName(id)+' '+cash(l.balance)).join(' · ');
     let body=life.ended?'':subhead('Next birthday')+budgetLines(b);
     if(b.payments)body+=Object.entries(b.payments).map(([k,v])=>detail(loanName(k)+' payment',cash(v))).join('');
+    if(!life.ended&&life.age>=18){
+      body+=row('sheet','household-help','Manage household costs & debt','Housing choices, assistance and arrangements with creditors.','wallet');
+      if(b.warnings?.length)body+=detail('Financial warning',b.warnings.join(' '));
+      for(const f of b.foreclosures||[])body+=detail('Secured debt at risk',f.name+' · projected sale '+cash(f.proceeds)+' · remaining shortfall '+cash(f.shortfall)+'.');
+      if(Number.isFinite(b.creditLimit))body+=detail('Household credit limit',cash(b.creditLimit));
+    }
     if(last)body+=subhead('Last birthday · '+last.year)+budgetLines(last);
     if(s.expansion?.dispute)body+=detail('Inheritance held by executor',cash(s.expansion.dispute.amount)+' included in net worth until the dispute is settled.');
     if(s.trust)body+=detail('Held in trust',cash(s.trust)+' will transfer to your bank at age 18.');
     if(loans)body+=detail('Outstanding balances',loans)+detail('Interest this year',cash(b.interest)+' is added before payments. Any unpaid interest remains in your balance.')+option(S.options(life,'money')[0]);
     return {title:'Annual budget',body:body||detail('Estate',cash(W.netWorth(life)))};
+  }
+  function helpView(){
+    if(life.ended||life.age<18)return null;
+    return {title:'Household costs & debt',body:'<div class="commands">'+S.hardshipOptions(life).map(o=>row('sheet','relief-'+o.id,o.title,o.desc,'wallet',o.reason)).join('')+'</div>'};
+  }
+  function realismView(){
+    const h=E.year.healthContext(life),choices=[['guided','Guided','A gentler early-life mortality curve.'],['historical','Historical Realism','Childhood and adult survival reflect the period and household conditions.']];
+    return {title:'Health & mortality',tag:h.label,body:detail('Current outlook',h.description)+detail('Access to care',h.careAccess)+
+      (h.riskFactors.length?detail('Current risk factors',h.riskFactors.join(' · ')):'')+'<div class="commands">'+choices.map(([v,label,description])=>
+        row('set-realism',v,label,description,'heart',E.year.realism(life)===v?'Selected':'')).join('')+'</div>'};
   }
   function willView(){
     const kids=S.children(life),beneficiary=life.people[life.sim.will];
@@ -786,7 +820,7 @@
     if(key==='save-slots')return {title:'Character slots',body:'<div class="commands">'+disk.slots().map(s=>row('slot',String(s.n),'Slot '+s.n+(s.name?' · '+s.name:''),s.occupied?'Age '+s.age:'Start a separate random life','save',s.active?'Playing':'')).join('')+'</div>'};
     if(key==='recover-confirm')return {title:'Restore previous autosave?',body:detail('Previous action','Restore the snapshot before the last saved change in this slot.')+actionButton('save-recover','','Restore previous autosave','primary wide','back')};
     if(key==='file-import')return {title:'Import a backup',body:detail('Choose a file','Review the backup before replacing the life in slot '+disk.current+'.')+(window.PocketFiles?actionButton('pick-file','','Choose backup file','primary wide','archive'):'<label class="file-label">Choose backup file<input id="backup-file" type="file" accept=".json,application/json,text/plain"></label>')};
-    if(key==='import-confirm'&&incomingBackup)return {title:'Restore imported life?',body:detail(importDetails.name,'Age '+importDetails.age+' · '+cash(importDetails.cash)+' · '+importDetails.archives+' archived lives.')+detail('Slot '+disk.current,'Your current life will become the previous autosave in this slot.')+actionButton('import-file','','Restore this backup','primary wide','save')};
+    if(key==='import-confirm'&&incomingBackup)return {title:'Restore imported life?',body:detail(importDetails.name,'Age '+importDetails.age+' · '+importDetails.formattedCash+' · '+importDetails.archives+' archived lives.')+detail('Slot '+disk.current,'Your current life will become the previous autosave in this slot.')+actionButton('import-file','','Restore this backup','primary wide','save')};
 
     if(key==='class'||key==='workplace'){
       const roster=members(key);return {title:key==='class'?'Class directory':'People at work',tag:key==='class'?E.state(life).currentSchool:E.state(life).employer,body:roster.length?'<div class="commands">'+roster.map(([k,p])=>personRow(k,p)).join('')+'</div>':detail('Directory','No current contacts.')};
@@ -807,7 +841,7 @@
     if(key==='death'&&life.ended)return {title:'Life complete',tag:'Generation '+life.sim.generation,body:legacy(life,true)};
     if(key==='checkpoint'){
       const c=disk.checkpoint();
-      return {title:'Save & load · Slot '+disk.current,body:(saveNotice||disk.message?detail('Save status',saveNotice||disk.message):'')+extraSaveRows()+detail('Saved checkpoint',c?c.active.name+' · Age '+c.active.age+' · '+cash(c.active.cash):'No manual save yet.')+
+      return {title:'Save & load · Slot '+disk.current,body:(saveNotice||disk.message?detail('Save status',saveNotice||disk.message):'')+extraSaveRows()+detail('Saved checkpoint',c?c.active.name+' · Age '+c.active.age+' · '+E.historyEconomy.money(c.active,c.active.cash):'No manual save yet.')+
        '<div class="commands">'+row('manual-save','','Save this game',c?'Replace the existing checkpoint.':'Keep this character and all past lives.','save')+
        row('sheet','load-confirm','Load checkpoint','Restore the character, journal and archived lives.','back',c?'':'Save a checkpoint first')+'</div>'};
     }
@@ -815,12 +849,12 @@
     if(key==='net')return {title:'Net worth breakdown',body:detail('Bank balance',cash(life.cash))+detail('Possessions',cash(W.possessions(life)))+detail('Investments',cash(life.sim.fund+X.portfolio(life)))+detail('Business equity',cash(X.companyValue(life)))+detail('In trust',cash(life.sim.trust))+(life.sim.expansion?.dispute?detail('Contested inheritance',cash(life.sim.expansion.dispute.amount)):'')+detail('Outstanding debt',cash(S.debt(life)))+detail('Total net worth',cash(W.netWorth(life)))};
     if(key.startsWith('cutoff-')){const who=key.slice(7),p=life.people[who];if(!p)return null;return {title:'Cut off '+p.name+'?',body:detail('End contact','You will no longer visit or speak to this person.')+actionButton('cutoff',who,'End contact','primary wide','exit')};}
     if(key==='decision')return decisions();
-    if(key==='license')return {title:'Driving test',body:detail('Road signs',S.drivingTest.question)+'<div class="commands">'+
+    if(key==='license')return {title:'Driving test',body:detail('Test fee',S.licenseFee(life)?cash(S.licenseFee(life)):'Free')+detail('Road signs',S.drivingTest.question)+'<div class="commands">'+
       S.drivingTest.answers.map(([k,t,ic])=>row('license',k,t,'',ic,S.licenseReason(life))).join('')+'</div>'};
     if(key==='destinations'){
       if(life.ended||life.age<18)return null;
       if(!G.cities[movingTown])movingTown=life.town;
-      return {title:'Choose a new home',tag:'Moving · '+cash(S.movingFee),body:
+      return {title:'Choose a new home',tag:future()?'Choose a route for its fare':'Moving · '+cash(S.moveFare(life)),body:
         detail('Current home',G.label(life.town))+locationFields(movingTown)+
         '<div id="moving-actions">'+moveActions(movingTown)+'</div>'};
     }
@@ -830,7 +864,7 @@
       const abroad=G.international(life.town,town),verb=abroad?'Immigrate':'Move';
       return {title:verb+' to '+G.cities[town].name+'?',tag:abroad?'International move':'Domestic move',body:
         detail('Leaving',G.label(life.town))+detail('New home',G.label(town))+
-        extra.link('visa','Local conditions & immigration','See local costs, visa routes and eligibility.','passport',town)+(abroad?detail('Entry clearance',X.economy.papers(life,town).citizen?'Entry as a citizen.':X.economy.papers(life,town).valid?'Current permit accepted.':X.economy.papers(life,town).eligible?'Your settlement application qualifies. Confirming issues a two-year visa.':X.economy.papers(life,town).reason):'')+detail('Moving fee',cash(S.movingFee)+' for your household. Bank balance '+cash(life.cash)+'.')+
+        extra.link('visa','Local conditions & immigration','See local costs, visa routes and eligibility.','passport',town)+(abroad?detail('Entry clearance',X.economy.papers(life,town).citizen?'Entry as a citizen.':X.economy.papers(life,town).valid?'Current permit accepted.':X.economy.papers(life,town).eligible?'Your settlement application qualifies. Confirming issues a two-year visa.':X.economy.papers(life,town).reason):'')+detail('Moving fee',cash(S.moveFare(life,town))+' for your household. Bank balance '+cash(life.cash)+'.')+
         '<div class="sheet-actions">'+actionButton('sheet','destinations','Choose another city','secondary','back')+
         actionButton('move',town,abroad?'Immigrate':'Move household','primary','map',S.moveReason(life,town))+'</div>'};
     }
@@ -843,6 +877,14 @@
     if(key.startsWith('hub-'))return hubView(key.slice(4));
     if(key.startsWith('do-'))return doView(key.slice(3));
     if(key==='budget')return budgetView();
+    if(key==='household-help')return helpView();
+    if(key.startsWith('relief-')){
+      if(life.ended||life.age<18)return null;
+      const choice=S.hardshipOptions(life).find(o=>o.id===key.slice(7));
+      if(!choice)return null;
+      return {title:choice.title,tag:'Household finances',body:detail('Terms',choice.desc)+'<div class="sheet-actions">'+actionButton('sheet','household-help','Back','secondary','back')+actionButton('relief',choice.id,'Confirm','primary','check',choice.reason)+'</div>'};
+    }
+    if(key==='realism')return realismView();
     if(key==='will'&&life.age>=18&&!life.ended)return willView();
     if(key==='legacy')return heirsView();
     if(key.startsWith('heir-'))return heirView(key.slice(5));
@@ -851,8 +893,9 @@
     if(key==='menu')return {title:'Game menu',body:'<div class="commands">'+(canEdit()?row('edit-form','','Customize character','Era, birth year, birthplace and portrait.','pencil'):'')+
       row('new-form','','Start a custom life','Choose an era, year and birthplace.','sprout')+row('sheet','random-confirm','Start a random life','Meet a new character.','dice')+
       row('sheet','appearance','Journal appearance',game.settings.theme&&game.settings.theme!=='auto'?'Theme locked':'Follows the calendar','palette')+
+      row('sheet','realism','Health & mortality',E.year.realism(life)==='historical'?'Historical mortality':'Guided mortality','heart')+
       row('sheet','motion','Motion settings',game.settings.motion==='reduced'?'Reduced motion':'Use device preference','phone')+
-      row('sheet','checkpoint','Save slots & backups','Switch lives, recover or transfer a save.','save')+row('sheet','help','How to play','Aging, choices and free time.','book')+(game.archive.length?row('sheet','archive','Past lives',game.archive.length+' saved','archive'):'')+'</div><p class="version">Pocket Years · Faith &amp; Civilization · v1.1</p>'};
+      row('sheet','checkpoint','Save slots & backups','Switch lives, recover or transfer a save.','save')+row('sheet','help','How to play','Aging, choices and free time.','book')+(game.archive.length?row('sheet','archive','Past lives',game.archive.length+' saved','archive'):'')+'</div><p class="version">Pocket Years · v1.2</p>'};
     if(key==='appearance'){
       const selected=game.settings.theme||'auto';
       const themes=[{id:'auto',name:'Follow the calendar',icon:'clock'},...eraUI.themes];
@@ -887,9 +930,9 @@
     if(key==='matches'&&life.age>=18&&!life.ended&&W.matches(life).length)return {title:'Dating app',body:'<div class="commands">'+W.matches(life).map((m,i)=>row('sheet','match-'+i,m.fullName,'Age '+m.age+' · '+m.job,'heart',W.matchReason(life,i))).join('')+'</div>'};
     if(/^match-[0-2]$/.test(key)&&life.age>=18&&W.matches(life).length){
       const i=Number(key.slice(6)),m=W.matches(life)[i];
-      return {title:m.fullName,tag:'Dating profile',body:detail('Age '+m.age+' · '+m.job,'Describes themself as '+m.trait+'.')+actionButton('match',String(i),'Send introduction · $15','primary wide','chat',W.matchReason(life,i))};
+      return {title:m.fullName,tag:'Dating profile',body:detail('Age '+m.age+' · '+m.job,'Describes themself as '+m.trait+'.')+actionButton('match',String(i),'Send introduction · '+cash(W.introductionCost),'primary wide','chat',W.matchReason(life,i))};
     }
-    if(key==='date')return {title:'Go on a date',body:detail('A first date',earlier()?'Take a walk and meet someone in your community.':life.age<18?'Walk home with someone after school.':'Spend $35 to meet someone new over coffee.')+'<div class="sheet-actions">'+actionButton('close','','Cancel','secondary','close')+actionButton('date','','Meet someone','primary','heart',W.dateReason(life))+'</div>'};
+    if(key==='date')return {title:'Go on a date',body:detail('A first date',earlier()?'Take a walk and meet someone in your community.':life.age<18?'Walk home with someone after school.':'Spend '+cash(W.dateCost(life))+' to meet someone new over coffee.')+'<div class="sheet-actions">'+actionButton('close','','Cancel','secondary','close')+actionButton('date','','Meet someone','primary','heart',W.dateReason(life))+'</div>'};
     if(key==='separate')return {title:life.people.love.role==='Spouse'?'File for divorce?':'End the relationship?',body:detail(life.people.love.name,life.people.love.role==='Spouse'?'Your spouse will receive '+cash(W.separationAmount(life))+' from your bank balance.':'This will move your partner into your past relationships.')+'<div class="sheet-actions">'+actionButton('close','','Keep relationship','secondary','heart')+actionButton('split','','Separate','primary','broken-heart')+'</div>'};
     if(key==='adopt')return {title:'Welcome a child',tag:'Family',body:'<p class="sheet-intro">Spend '+cash(W.familyCost(life))+' getting your home ready. Choose a name or let the game pick one.</p><form id="child-form"><label for="child-name">Child’s name</label><input id="child-name" placeholder="Surprise me" value="'+esc(childDraft)+'" maxlength="32" autocomplete="off"><div class="sheet-actions">'+actionButton('close','','Cancel','secondary','close')+'<button type="submit" class="primary"'+(W.familyReason(life)?' disabled':'')+'>'+icon('baby')+esc(W.familyReason(life)||'Welcome home')+'</button></div></form>'};
     if(key==='wallet')return {title:'Bank balance',body:detail(cash(life.cash),'Your next birthday brings in '+cash(life.ended?0:E.income(life))+'.')+actionButton('tab','assets','Open assets','primary wide','coin')};
@@ -907,6 +950,7 @@
       if(key){activeRoute={tab:activeRoute.tab,sheet:null};writeRoute(activeRoute,true);}
       if(openPanel){
         const leaving=openPanel;openPanel=null;
+        for(const node of leaving.querySelectorAll('[id]'))node.removeAttribute('id');
         leaving.style.pointerEvents='none';leaving.setAttribute('aria-hidden','true');leaving.setAttribute('inert','');
         M.close(leaving,()=>leaving.remove());
       }
@@ -957,7 +1001,7 @@
   function pickedBackup(raw){
     if(!raw)return;const trial=disk.inspectFile(raw);
     if(!trial){clearImport();saveNotice=disk.message;showSheet('checkpoint');say(saveNotice);return;}
-    incomingBackup=String(raw);importDetails={name:trial.active.name,age:trial.active.age,cash:trial.active.cash,archives:trial.archive.length};showSheet('import-confirm');
+    incomingBackup=String(raw);importDetails={name:trial.active.name,age:trial.active.age,formattedCash:E.historyEconomy.money(trial.active,trial.active.cash),archives:trial.archive.length};showSheet('import-confirm');
   }
   window.pocketFileReady=function(){if(!window.PocketFiles||E.blocking(life))return;const raw=window.PocketFiles.pending();if(raw)pickedBackup(raw);};
   function applyResult(res){
@@ -989,7 +1033,7 @@
     const b=ev.target.closest('button[data-do]');if(!b||b.disabled)return;
     const act=b.dataset.do,key=b.dataset.key||'';
     if(activeRoute.sheet && (!openPanel || !openPanel.contains(b)))return;
-    if(!activeRoute.sheet && overlay.contains(b))return;
+    if(!activeRoute.sheet&&!shell.contains(b))return;
     if(act==='faith-encounter'&&activeRoute.sheet==='faith-encounter'){applyResult(E.faithPerform(life,{group:'encounter',id:key}));return;}
     if(act==='faith-run'){applyResult(E.faithPerform(life,faithUI.command(life,activeRoute.sheet,key)));return;}
     if(act==='hist-run'&&activeRoute.sheet===key&&key.startsWith('hist-review~')){applyResult(historicalUI.perform(life,key));return;}
@@ -999,6 +1043,10 @@
       const [area,ref='',arg='',id='']=current.slice(3).split('~');
       if(act==='xp-confirm'){if(area==='confirm'&&id===key)applyResult(X.perform(life,ref,arg,id));}
       else if(area!=='confirm')applyResult(X.perform(life,area,ref,key));return;
+    }
+    if(act==='relief'&&activeRoute.sheet==='relief-'+key){applyResult(S.relief(life,key));return;}
+    if(act==='set-realism'&&activeRoute.sheet==='realism'){
+      if(E.year.setRealism(life,key)){persist();paintSheet('realism','setting');say('Mortality setting saved.');}return;
     }
     if(act==='asset-sort'&&['recent','value','condition','name'].includes(key)){assetSort=key;display(activeRoute,'filter');return;}
     if(act==='slot'&&activeRoute.sheet==='save-slots'){if(switchGame(disk.select(Number(key),game)))say('Switched to slot '+disk.current+'.');else say(disk.message||'Could not switch slots.');return;}
@@ -1033,7 +1081,15 @@
       go(life.age<18||life.sim.program?'school':'career');return;
     }
     if(act==='tab'){go(key,null,!!activeRoute.sheet);return;}
-    if(act==='central'){if(ev.detail===2)return;if(activeRoute.tab!=='life')go('life',null,true);advance();return;}
+    if(act==='central'){
+      // Android touch clicks may each report detail 1. Only coalesce a repeated tap on Age itself.
+      const t=ev.timeStamp,pointer=ev.detail>0;
+      if(pointer&&(ev.detail>1||(lastAgeTap?.life===life&&lastAgeTap.age===life.age&&t>=lastAgeTap.time&&t-lastAgeTap.time<280)))return;
+      if(activeRoute.tab!=='life')go('life',null,true);
+      const before=life.age;advance();
+      lastAgeTap=pointer&&life.age!==before&&Number.isFinite(t)?{life,age:life.age,time:t}:null;
+      return;
+    }
     if(act==='place-hit'&&byId('place-search')){applyPlaceHit(key);return;}
     if(act==='sheet'){
       if(key.startsWith('faith-')&&!life.sim.faithWorld?.institutions&&!life.ended&&!E.blocking(life)){E.faithInstitutions.initialize(life);persist();}
@@ -1075,7 +1131,7 @@
     if(act==='match'&&activeRoute.sheet==='match-'+key){applyResult(W.match(life,Number(key)));return;}
     if(act==='date'&&activeRoute.sheet==='date'){applyResult(W.meet(life));return;}
     if(act==='new-form'||act==='edit-form'){draft=null;showSheet(act==='new-form'?'new':'edit');return;}
-    if(act==='shuffle'){const edit=activeRoute.sheet==='edit',year=draft.birthYear,era=draft.era,legacyBirth=draft.legacyBirth;draft=makeDraft(false);Object.assign(draft,{edit,birthYear:year,era,legacyBirth});paintSheet(activeRoute.sheet,'shuffle');return;}
+    if(act==='shuffle'){const edit=activeRoute.sheet==='edit',year=draft.birthYear,era=draft.era,legacyBirth=draft.legacyBirth,realism=byId('birth-realism').value;draft=makeDraft(false);Object.assign(draft,{edit,birthYear:year,era,legacyBirth,realism});paintSheet(activeRoute.sheet,'shuffle');return;}
     if(act==='swatch'){readDraft();draft.skin=Number(key);paintSheet(activeRoute.sheet,'swatch');return;}
     if(act==='pick-theme'&&activeRoute.sheet==='appearance'&&(key==='auto'||eraUI.themes.some(t=>t.id===key))){
       game.settings.theme=key;persist();syncShell(activeRoute.tab);paintSheet('appearance','theme');
@@ -1138,7 +1194,7 @@
     const f=draft,name=E.cleanName(f.name);
     if(!name){const input=byId('person-name');input.value='';input.reportValidity();return;}
     if(f.edit&&canEdit()){
-      const identity={name,town:f.town,thread:f.thread,skin:f.skin,identity:f.identity,faithId:f.faithId};
+      const identity={name,town:f.town,thread:f.thread,skin:f.skin,identity:f.identity,faithId:f.faithId,realism:f.realism};
       if(!f.legacyBirth)identity.birthYear=f.birthYear;
       if(E.customizeBirth(life,identity)){persist();dismiss('edit');say('Character saved.');}
     }else if(!f.edit){

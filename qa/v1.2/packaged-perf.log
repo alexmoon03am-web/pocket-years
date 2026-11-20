@@ -1,0 +1,3 @@
+PASS public v0.8.1 save imports, preserves its calendar, cash, journal and settings, and resumes.
+PASS 900 consecutive birthdays across all six eras, 25 generations, 36 save imports and 2 naturally ended lines; largest export 483959 bytes.
+{"checks":66,"largest":{"year":2100,"bytes":483959,"archive":24},"seconds":5.47,"metrics":{"exportFile":{"p50ms":4.67,"p95ms":20.08,"maxms":40.32,"count":66},"inspectFile":{"p50ms":19.67,"p95ms":48.11,"maxms":72.93,"count":66},"save":{"p50ms":3.94,"p95ms":16.03,"maxms":28.16,"count":66},"load":{"p50ms":10.55,"p95ms":32.63,"maxms":40.31,"count":66}}}

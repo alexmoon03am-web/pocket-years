@@ -17,6 +17,13 @@ function act(l,group,id){
 }
 for(const by of [1280,1500,1730,1900,2000,2100]){
   const l=create(by),s=l.sim.faithWorld.institutions,q=I.prices(l);
+  // This donor fixture exercises funding and operation across different price levels.
+  // First check the refusal at one unit below the current land quote.
+  l.cash=q.land-1;
+  assert(I.actions(l,'institutions').find(a=>a.id==='land').reason);
+  assert.equal(E.faithPerform(l,{group:'institutions',id:'land'}),null);
+  assert.equal(l.cash,q.land-1);
+  l.cash=q.land+q.build*3+q.wage*4+q.materials*4+300000;
   const old=JSON.stringify(s);I.actions(l,'institutions');I.records(l);I.summary(l);assert.equal(JSON.stringify(s),old,'Browsing changes the ledger');
   const worth=E.world.netWorth(l),cash=l.cash,oldExpenses=E.sim.budget(l).housing;
   act(l,'institutions','land');assert.equal(l.cash,cash-q.land);

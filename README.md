@@ -1,3 +1,15 @@
+# Pocket Years v1.2 — Balance, Realism & Polish
+
+- New hires start at career-specific pay grades. Experience, training and performance open better roles. Supervisors review promotions and raises. A work reference can reopen some opportunities after a conviction.
+- Household Accounts now forecasts shortages, shows outstanding debts and offers ways to recover. Share housing, cut grocery costs, ask for help with essentials or negotiate with lenders. Missed secured payments put the property or vehicle at risk.
+- Age, household conditions, local outbreaks, access to care and hazardous work affect historical survival. Guided is the default. Choose Historical Realism for greater risks. Descendants inherit the setting.
+- Prices continue changing past 2120. Local pay, investment quotes and property valuations track the long-run economy. An inherited home's original deed stays in the family records.
+- The orbital economy gives way to a planetary economy in 2150 and a long-voyage economy in 2500. Train as a canopy architect, run a relay-mail exchange or buy a light-sail tender. New journal themes follow the calendar and can be locked in Appearance.
+- Price quotes, receipts and past ledger entries use the currency of their time. Repeated taps on a purchase, birthday or event choice are guarded. Spending time with everyone still strengthens each individual relationship.
+- Reunited religious branches can manage their original institutions. Existing saves retain their families, possessions, bank balances, loans and journals. Pocket Years remains free and playable offline.
+
+[v1.2 playtest results and known issues](qa/v1.2/RESULTS.md)
+
 # Pocket Years v1.1 — Faith & Civilization
 
 [Android APK](https://github.com/alexmoon03am-web/pocket-years/releases/download/v1.1/Pocket-Years-v1.1.apk) · [Source ZIP](https://github.com/alexmoon03am-web/pocket-years/releases/download/v1.1/Pocket-Years-Source-v1.1.zip)

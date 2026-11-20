@@ -141,11 +141,13 @@
     }
   }
   function role(id){if(!id?.startsWith('faith-'))return null;buildRoles();return rolesTable[id]||null;}
-  function wage(l,id,age=l.age,town=l.town,raise=l.job===id?l.extraPay||0:0){
+  function wage(l,id,age=l.age,town=l.town,raise=l.job===id?l.extraPay||0:0,npc=false){
     const r=role(id);if(!r)return 0;
     const p=economy.profile(l,age,town),salary=jobTable[id][1];
     const scale=economy.historical(l,age)?p.food/7500:1;
-    return Math.round((salary*scale+raise)*p.pay);
+    const existing=!npc&&l.job===id&&l.world.contractRole!==id;
+    const amount=(salary*scale+raise)*(existing?(p.legacyPay??p.pay):p.pay);
+    return npc?Math.round(amount):economy.contractPay(l,id,amount);
   }
   function leaveOffice(l,ctx){
     if(!role(l.job))return;
@@ -352,7 +354,7 @@
       n.knowledge=score(n.knowledge+1);
       n.involvement=score(n.involvement+1);
       if(!p.communityEmployer){
-        const earnings=wage(l,p.career,l.age,p.town||l.town,0);
+        const earnings=wage(l,p.career,l.age,p.town||l.town,0,true);
         p.wealth=Math.max(0,(p.wealth||0)+Math.round(earnings*.035));
       }
     }

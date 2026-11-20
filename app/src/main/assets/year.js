@@ -6,8 +6,102 @@
   const node=typeof module!=='undefined'&&module.exports;
   function kin(){return node?require('./kinship.js').PocketKinship:root.PocketKinship;}
   function period(l){return !!l.sim?.timeline?.historicalRules&&l.born+l.age<2000;}
-  function money(l,n){return period(l)?(node?require('./history-economy.js').PocketHistoryEconomy:root.PocketHistoryEconomy).money(l,n):M.cash(n);}
+  function money(l,n){return (node?require('./history-economy.js').PocketHistoryEconomy:root.PocketHistoryEconomy).money(l,n);}
   const workerNames=['Devin','Nora','Mel','Inez','Raj','Dale','Cass','Bo','Mira','Gus','Anya','Kai'];
+  function realism(l){return l.sim.realism==='historical'?'historical':'guided';}
+  function setRealism(l,mode){
+    if(mode!=='guided'&&mode!=='historical')return false;
+    if(mode==='guided')delete l.sim.realism;else l.sim.realism=mode;
+    return true;
+  }
+  function inheritRealism(parent,child){setRealism(child,realism(parent));}
+  // Balance curves describe a fictional household. Child and adult hazards are separate:
+  // https://ourworldindata.org/how-do-the-risks-of-death-change-as-people-age
+  const pressureByYear=[[1200,1],[1500,.97],[1750,.90],[1850,.80],[1900,.58],[1940,.32],[1970,.12],[2000,0]];
+  function eraPressure(y){
+    for(let i=1;i<pressureByYear.length;i++){
+      const [end,next]=pressureByYear[i],[start,last]=pressureByYear[i-1];
+      if(y<=end)return last+(next-last)*Math.max(0,y-start)/(end-start);
+    }
+    return 0;
+  }
+  function birthParent(l){
+    if(!l.sim.expecting)return null;
+    if(l.sim.identity==='woman')return l.id;
+    const expecting=l.sim.expecting;
+    const p=Object.values(l.people).find(n=>expecting.parentId?n.id===expecting.parentId:
+      n.name===expecting.parent&&['Partner','Spouse','Engaged partner'].includes(n.role));
+    return p?.gender==='woman'?p.id:null;
+  }
+  function placeHealth(l,town){
+    const y=l.born+l.age,H=node?require('./history-world.js').PocketHistoryWorld:root.PocketHistoryWorld;
+    const place=H.place(town,y),events=H.activeEvents?H.activeEvents(l,town,y):[];
+    const has=effect=>events.some(e=>e.effect===effect);
+    const disruption=has('conflict')||has('lean')||has('fire'),outbreak=has('disease');
+    const hospital=(l.sim.faithWorld?.institutions?.sites||[]).some(s=>s.kind==='hospital'&&s.town===town&&s.condition>=35&&s.staff?.length);
+    const careAccess=hospital?'Staffed local hospital':has('medical')?'Expanded local health services':y>=1950?'Community medical services':place?.travelIndex<1?'Practitioners on regional routes':'Household and local practitioners';
+    return {disruption,outbreak,hospital,careAccess,access:hospital?.77:has('medical')?.84:place?.travelIndex<1?.97:1.04};
+  }
+  const namedHazards=[
+    ['childbirth','Childbirth complications'],
+    ['occupational','A workplace accident'],
+    ['outbreak','Illness during a local outbreak']
+  ];
+  const ageBands=[[1,.135],[4,.027],[11,.005],[17,.0036],[39,.0045],[54,.013],[69,.034],[Infinity,.051]];
+  function hazardCause(roll,h){
+    if(!h)return {remaining:roll,cause:''};
+    for(const [name,cause] of namedHazards){
+      const weight=h[name];
+      if(roll<weight)return {remaining:0,cause};
+      roll-=weight;
+    }
+    return {remaining:roll,cause:''};
+  }
+  function occupationExposure(title){
+    if(/foundry|railhand|railway|miner|knight|warrior|guard|navigator|fishing|aviator|firefight|construction|oil rig/i.test(title))return 1;
+    if(/grower|farmer|smith|porter|dyer|spinner|textile|mechanic|carter|freight|carpenter|machinist|enginewright|boatwright|boatbuilder|kiln/i.test(title))return .5;
+    return 0;
+  }
+  function careProfile(l,p=null,local=null,carrier=birthParent(l)){
+    const y=l.born+l.age,s=l.sim,mode=realism(l);
+    const age=p?M.ageOf(l,p):l.age,town=p?.town||l.town,place=local||placeHealth(l,town);
+    const early=s.timeline?.historicalRules?eraPressure(y):0;
+    const adjusted=early>0||mode==='historical';
+    const intensity=mode==='historical'?1:.26;
+    const livingDebt=(s.loans?.living?.balance||0)>0||(s.expansion?.missed||0)>1;
+    const hardship=livingDebt&&(!p||age<18&&town===l.town);
+    const childBudget=age<18&&town===l.town&&s.expansion?.start==='A tight household budget';
+    const noGuardian=age<18&&!p&&!Object.values(l.people).some(n=>['Mother','Father','Parent','Guardian','Stepparent'].includes(n.role)&&M.isAlive(n));
+    const hardshipFactor=1+(hardship?.20:0)+(childBudget?.09:0)+(noGuardian?.12:0);
+    const work=age>=14&&age<85?occupationExposure(p?p.job:l.job):0;
+    const care=place.access*(1-Math.min(.15,(p?.communityCare||0)/300));
+    const ageBand=ageBands.find(([lastAge])=>age<=lastAge)[1];
+    const expecting=!!carrier&&carrier===(p?p.id:l.id);
+    const scale=(.12+.88*early)*intensity;
+    const excess=early*ageBand*intensity*hardshipFactor*care;
+    const disruption=adjusted&&place.disruption?.0035*scale*care:0;
+    const outbreak=adjusted&&place.outbreak?(age<=5||age>=60?.032:.016)*scale*care:0;
+    const occupational=adjusted?work*.0045*scale:0;
+    const childbirth=adjusted&&expecting?(.00014+.011*early)*intensity*hardshipFactor*care:0;
+    return {mode,early,excess,occupational,childbirth,outbreak,disruption,care,hardshipFactor,work,
+      place,expecting,noGuardian,strained:hardship||childBudget};
+  }
+  function healthContext(l){
+    const p=careProfile(l),factors=[];
+    if(l.age<=4)factors.push('Early childhood');
+    if(p.early>.5)factors.push('Limited treatment options');
+    if(p.strained)factors.push('Strained household budget');
+    if(p.noGuardian)factors.push('No surviving parent or guardian');
+    if(p.place.outbreak)factors.push('Local disease outbreak');
+    if(p.place.disruption)factors.push('Disrupted local supplies');
+    if(p.work)factors.push('Hazardous work');
+    if(p.expecting)factors.push('Childbirth this year');
+    if(l.sim.illnesses.some(c=>!c.treated&&c.severity>=30))factors.push('Untreated illness');
+    if(l.sim.injuries.length)factors.push('Recovering from injury');
+    return {mode:p.mode,label:p.mode==='historical'?'Historical Realism':'Guided',
+      description:p.mode==='historical'?'Childhood, childbirth and untreated illness carry greater risks, especially in earlier centuries.':'Age and local conditions shape health. Severe outcomes are less common.',
+      riskFactors:factors,careAccess:p.place.careAccess};
+  }
   function create({random,rngItem,apply,log,world,sim,jobs}){
     function workplace(l){
       const job=l.job&&!['student','retired'].includes(l.job)?l.job:null;
@@ -61,7 +155,12 @@
       }
     }
     function mortality(l){
-      const s=l.sim;
+      const s=l.sim,adjusted=realism(l)==='historical'||period(l),locations=new Map(),carrier=birthParent(l);
+      function profile(p){
+        const town=p?.town||l.town;
+        if(!locations.has(town))locations.set(town,placeHealth(l,town));
+        return careProfile(l,p,locations.get(town),carrier);
+      }
       for(const p of Object.values(l.people)){
         if(!p.met||!M.isAlive(p))continue;
         const age=M.ageOf(l,p);
@@ -69,6 +168,8 @@
         if(!p.town&&l.sim.expansion)p.town=l.town;
         if(age>=18)p.wealth+=kin().annualSavings(l,p,age);
         const risk=age<55?.0006:age<75?.0025+(age-55)*.0006:.016+(age-75)*.0055;
+        const h=adjusted?profile(p):null;
+        let cause='';
         if(age<103){
           // A newly materialized class roster must not reroll an existing character's mortality.
           let roll;
@@ -76,12 +177,15 @@
             let bits=M.hash(p.id+'/'+(l.born+l.age));bits=Math.imul(bits^(bits>>>16),0x85ebca6b);
             roll=((bits^(bits>>>13))>>>0)/4294967296;
           }else roll=random(l);
-          if(roll>=risk)continue;
+          const outcome=hazardCause(roll,h);
+          cause=outcome.cause;
+          if(!cause&&outcome.remaining>=Math.min(.65,risk+(h?h.excess+h.disruption:0)))continue;
         }
         const relative=['Mother','Father','Parent','Guardian','Spouse'].includes(p.role);
         const inLife=p.active||M.isFamily(p)||relative;
         p.active=false;p.diedAt=l.age;
-        if(inLife)log(l,'Family',p.name+' died',p.fullName+' died at '+age+'.');
+        if(cause)p.causeOfDeath=cause;
+        if(inLife)log(l,'Family',p.name+' died',p.fullName+' died at '+age+'.'+(cause?' Cause of death: '+cause+'.':''));
         if(relative&&!p.cutOff){
           const siblings=Object.values(l.people).filter(n=>n.role==='Sibling'&&M.isAlive(n)).length;
           const amount=Math.floor(p.wealth*(p.role==='Spouse'?.8:.62)/(p.role==='Spouse'?1:1+siblings));
@@ -96,10 +200,22 @@
       const addiction=s.addictions.reduce((n,a)=>n+(a.sober?0:a.severity),0);
       const risk=l.age<40?.00025:l.age<65?.001+(l.age-40)*.00028:l.age<80?.009+(l.age-65)*.0015:.032+(l.age-80)*.007;
       const fragile=Math.max(0,46-l.stats.health)/1250,conditions=severity/2600+addiction/3900+s.injuries.reduce((n,x)=>n+x.severity,0)/7000;
+      const h=adjusted?profile(null):null;
       const accident=random(l)<(l.age<5?.0001:.00035+l.hidden.craziness/80000);
-      if(!accident&&l.age<110&&random(l)>=risk+fragile+conditions)return false;
+      let cause='';
+      if(!accident&&l.age<110){
+        const outcome=hazardCause(random(l),h);
+        cause=outcome.cause;
+        if(!cause){
+          const managed=s.illnesses.reduce((n,c)=>n+(c.treated?c.severity*(c.chronic?1:.22):0),0);
+          const conditionRisk=h?Math.max(0,conditions-managed/5200)*(1+h.early*.42)*h.care:conditions;
+          if(outcome.remaining>=Math.min(.75,risk+fragile+conditionRisk+(h?h.excess+h.disruption:0)))return false;
+        }
+      }
+      // The birth and estate can share a calendar year. Register the newborn before probate.
+      if(s.expecting&&h)sim.deliver(l);
       l.ended=true;l.event={id:null,resolved:true};l.eventQueue=[];s.review=null;
-      s.cause=accident?'An accident':severity>=35?'Complications of '+s.illnesses.slice().sort((a,b)=>b.severity-a.severity)[0].name:addiction>=40?'Addiction complications':l.age>=68?'Old age':'Sudden illness';
+      s.cause=accident?'An accident':cause|| (severity>=35?'Complications of '+s.illnesses.slice().sort((a,b)=>b.severity-a.severity)[0].name:addiction>=40?'Addiction complications':l.age>=68?'Old age':'Sudden illness');
       log(l,'Milestone','Death','I died at '+l.age+'. Cause of death: '+s.cause+'.');return true;
     }
     function drift(l){
@@ -126,18 +242,28 @@
     }
     function conditions(l){
       const s=l.sim;
+      const h=realism(l)==='historical'||period(l)?careProfile(l):null;
+      const difficult=h&&h.early*(h.mode==='historical'?1:.35);
       for(const c of s.illnesses.slice()){
-        c.years++;c.severity=M.clamp(c.severity+(c.chronic?(c.treated?-5:6):-13));
+        c.years++;c.severity=M.clamp(c.severity+(c.chronic?(c.treated?-5:6+Math.round(2*difficult)):c.treated?-18:-13+Math.round(4*difficult)));
         if(!c.severity){s.illnesses.splice(s.illnesses.indexOf(c),1);log(l,'Health','Symptoms cleared','My '+c.name+' cleared up.');}
       }
       for(const i of s.injuries.slice()){
         i.years++;i.severity=Math.max(0,i.severity-18);
         if(!i.severity){s.injuries.splice(s.injuries.indexOf(i),1);log(l,'Health','Injury healed','My '+i.name+' healed.');}
       }
-      if(l.age>=3&&s.illnesses.length<3&&random(l)<(l.age>63?.095:.043)){
+      const illnessChance=(l.age>63?.095:.043)+(h?(h.early*(l.age<5?.11:.052)+h.outbreak*2+h.disruption)*h.hardshipFactor*h.care:0);
+      if((l.age>=3||h&&difficult>.25)&&s.illnesses.length<3&&random(l)<illnessChance){
         const chronic=l.age>27&&random(l)<.23,name=chronic?'joint condition':rngItem(l,['chest cold','stomach bug','sinus infection']);
         if(!s.illnesses.some(c=>c.name===name)){s.illnesses.push({name,chronic,severity:chronic?38:21,years:0,treated:false});
           log(l,'Health','Diagnosis','I developed a '+name+(period(l)?'. I stayed home.':'. The clinic has my file.'),apply(l,{health:-3}));}
+      }
+      if(h&&h.work&&s.injuries.length===0){
+        const injuryChance=h.work*(.004+.055*h.early)*(h.mode==='historical'?1:.3);
+        if(random(l)<injuryChance){
+          s.injuries.push({name:'work injury',severity:36,years:0});
+          log(l,'Health','Injured at work','I came home hurt. My usual duties had to wait.',apply(l,{health:-5}));
+        }
       }
       for(const a of s.addictions){
         a.years++;
@@ -158,7 +284,7 @@
       }
       world.birthday(l);sim.birthday(l);workplace(l);campus(l);
     }
-    return {mortality,drift,conditions,workplace,campus,addiction};
+    return {mortality,drift,conditions,workplace,campus,addiction,realism,setRealism,inheritRealism,healthContext};
   }
   root.PocketYear={create};
 })(typeof module!=='undefined'&&module.exports?module.exports:window);

@@ -8,7 +8,7 @@
   const D=node?require('./expansion-data.js').PocketExpansionData:root.PocketExpansionData;
   const Kin=node?require('./kinship.js').PocketKinship:root.PocketKinship;
   const G=node?require('./geography.js').PocketGeography:root.PocketGeography;
-  const money=M.cash,pct=n=>Math.round(n*100)+'%';
+  const pct=n=>Math.round(n*100)+'%';
   const talents=['Numbers','Music','People','Endurance','Craft','Curiosity'];
   const characters=['Patient','Outgoing','Methodical','Adventurous','Ambitious','Practical'];
   const ambitions=['Build a family business','Master a hobby','Reach the boardroom','Build a property portfolio','Put down roots abroad','Keep a promise'];
@@ -50,7 +50,7 @@
   }
   function shares(l,id,age=l.age){
     const e=Ec.local(l,'cedar',age),seed=state(l).seed,y=l.born+age;
-    const swing=Math.sin(y*.83+Ec.sample(seed,id)*12),trend=Math.pow(1.018,Math.min(110,Math.max(-15,y-2005)));
+    const swing=Math.sin(y*.83+Ec.sample(seed,id)*12),trend=y<=2050?Math.pow(1.018,Math.max(-15,y-2005)):Math.pow(1.018,45)*e.priceIndex/Ec.priceIndex(seed,e.code,2050)*(1+.18*Math.log1p((y-2050)/70));
     return Math.max(12,Math.round((id==='bonds'?80+4*swing:95+27*swing+18*e.cycle+(e.sector===funds[id][1]?8:0))*trend));
   }
   function portfolio(l){const x=l.sim.expansion;if(!x)return 0;return Object.entries(x.portfolio).reduce((n,[k,qty])=>n+shares(l,k)*qty,0);}
@@ -61,9 +61,9 @@
       if(H.businesses[c.type]){rows.push(H.companyQuote(l,c,age));continue;}
       const cfg=D.businesses[c.type],local=Ec.local(l,c.town,age),share=c.share??1;
       const demand=.72+local.cycle*.68+(cfg[1]===local.sector?.24:cfg[1]===local.decline?-.21:0)+(c.clients||0)*.09;
-      const revenue=Math.max(0,Math.round(cfg[3]*c.level*share*local.pay*demand));
+      const revenue=Math.max(0,Math.round(cfg[3]*c.level*share*local.pay*demand*H.companyCapacity(l,c,age)));
       const managerPay=c.manager?Math.round(cfg[3]*c.level*share*.14*local.cost):0;
-      const operating=Math.round(cfg[3]*c.level*share*.49*local.cost+(c.staff||0)*350*share)+managerPay;
+      const operating=Math.round(cfg[3]*c.level*share*.55*local.cost+(c.staff||0)*550*local.cost*share)+managerPay;
       const net=revenue-operating,retained=net>0?Math.floor(net*.18):Math.max(-c.capital,net);
       rows.push({id:c.id,revenue,operating,managerPay,retained,payout:net-retained,net});
     }
@@ -79,7 +79,7 @@
     const lifestyle=Math.round(({Simple:0,Comfortable:850,Luxury:7200}[x.policies.lifestyle]||0)*Ec.local(l,l.town,age).cost);
     return {insurance,management,lifestyle};
   }
-  function credit(l){const overdue=l.sim.loans.living?.balance||0;return Math.max(0,Math.min(100,72+(l.sim.workYears||0)-Math.round(overdue/200)-(l.sim.expansion?.missed||0)*4));}
+  function credit(l){if(l.born+l.age<(l.sim.finance?.creditUntil||0))return 26;const overdue=l.sim.loans.living?.balance||0;return Math.max(0,Math.min(100,72+(l.sim.workYears||0)-Math.round(overdue/200)-(l.sim.expansion?.missed||0)*4));}
   function earned(l,x){
     const current=Object.values(x.hobbies);
     return [Object.keys(x.companies).length>0&&(l.sim.generation>1||l.sim.lifeTags.includes('family-firm')),current.some(n=>n>=80),l.job==='executive',Object.values(l.world.owned).filter(a=>a.listing?.category==='Property'||a.listing?.beds!==undefined).length>=3,x.passports.length>=2,l.sim.lifeTags.includes('kept-promise')];
@@ -89,6 +89,7 @@
     function actions(l,area,ref=''){
       const x=state(l),e=Ec.local(l),list=[],year=l.born+l.age;
       const historical=H.historical(l),money=amount=>H.enabled(l)?H.money(l,amount):M.cash(amount);
+      if((area==='career'||area==='business')&&ref)return list;
       if(historical&&['business','company','portfolio','asset','career','shop','visa'].includes(area))return list;
       if(area==='asset'&&l.world.owned[ref]?.listing?.historical)return list;
       function option(id,title,description,icon,rule,cost,run,once=true){
@@ -161,12 +162,12 @@
         option('assignment',D.professions[l.job]?.[6]||D.assignments[l.job]||cfg[1],cfg[0]+' · improve experience and performance.',cfg[5],'',0,()=>{
           let outcome='';
           if(l.job==='executive'||l.job==='director'){
-            const firm=Object.values(x.companies)[0];if(firm){firm.clients=Math.min(8,firm.clients+1);outcome=' My firm won a new client.';}else{l.extraPay+=360;outcome=' The board added to my compensation.';}
+            const firm=Object.values(x.companies)[0];if(firm){firm.clients=Math.min(8,firm.clients+1);outcome=' My firm won a new client.';}else{l.cash+=360;outcome=' The board paid a '+money(360)+' assignment bonus.';}
           }else if(sector==='Care'){const condition=l.sim.illnesses[0];if(condition){condition.treated=true;outcome=' I used the staff clinic afterward.';}else{apply(l,{health:3});outcome=' The team adopted my handover checklist.';} }
           else if(sector==='Industry'){const equipment=Object.entries(l.world.owned).find(([id,a])=>shop.ownedItem(id,a).category==='Vehicle'&&a.condition<100);if(equipment){equipment[1].condition=Math.min(100,equipment[1].condition+8);outcome=' I put the same repair into practice on my own vehicle.';}else{l.cash+=85;outcome=' I also earned an inspection fee.';}}
-          else if(sector==='Creative'){x.royalties=(x.royalties||0)+60;outcome=' My work now produces another $60 a year in royalties.';}
-          else if(sector==='Technology'){x.certs.includes(sector)?l.extraPay+=180:apply(l,{smarts:4});outcome=' The release became a reference project.';M.tag(l,'reference-release');}
-          else if(sector==='Commerce'){x.missed=Math.max(0,(x.missed||0)-1);l.cash+=110;outcome=' I collected a $110 project fee and reviewed my own accounts.';}
+          else if(sector==='Creative'){x.royalties=(x.royalties||0)+60;outcome=' My work now produces another '+money(60)+' a year in royalties.';}
+          else if(sector==='Technology'){if(cert)l.cash+=180;else apply(l,{smarts:4});outcome=' The release became a reference project.';M.tag(l,'reference-release');}
+          else if(sector==='Commerce'){x.missed=Math.max(0,(x.missed||0)-1);l.cash+=110;outcome=' I collected a '+money(110)+' project fee and reviewed my own accounts.';}
           else{const junior=Object.values(l.people).find(p=>p.met&&p.active&&['Child','Coworker'].includes(p.role));if(junior){junior.bond=M.clamp(junior.bond+4);Kin.remember(l,junior,'mentor',4);}apply(l,{bonds:3});outcome=' I helped someone else learn the job.';}
           W.metrics(l,{performance:cert?13:9,reputation:2});x.practice=(x.practice||0)+1;apply(l,{smarts:2,discipline:2});return 'I completed the assignment as '+job.toLowerCase()+'.'+outcome;
         });
@@ -181,31 +182,38 @@
         });
         option('cert','Earn '+cfg[4]+' certification',cfg[4]+' · study and examination fee '+money(450)+'.','school',cert?'Already certified':l.stats.smarts<40?'Needs 40% smarts':'',450,()=>{
           x.certs.push(sector);W.metrics(l,{reputation:5});apply(l,{smarts:3});M.tag(l,'certified');return 'I earned my '+cfg[4].toLowerCase()+' certificate.';});
-        option('negotiate','Negotiate a salary agreement','Performance, experience and local hiring affect the offer.','wallet','',0,()=>{
+        option('negotiate','Negotiate a salary agreement','Request this year’s pay review. Performance and local hiring affect the offer.','wallet',W.reviewReason(l),0,()=>{
           const score=l.world.performance+(cert?15:0)+(l.sim.workYears||0)+l.world.reputation*.15-e.unemployment*110;
-          if(score<61){W.metrics(l,{performance:1});return 'They filed the request. The figure on my payslip stayed the same.';}
-          const n=Math.round(jobs[l.job][1]*.07);l.extraPay+=n;return 'My new local annual pay is '+money(Ec.salary(l,l.job,jobs))+'.';});
+          const raise=W.settleReview(l,.043,score>=72);
+          if(!raise){W.metrics(l,{performance:1});return 'They filed the request. The figure on my payslip stayed the same.';}
+          return 'My new local annual pay is '+money(Ec.salary(l,l.job,jobs))+'.';});
         option('employer','Interview with a competing employer','Stay in your profession and meet a new team.','bag',l.world.performance<58?'Needs 58% performance':'',0,()=>{
           const names=['Union','Harbor','Northgate','Central','Civic'];const firm=names[(names.indexOf((x.employer||'').split(' ')[0])+1)%names.length]+' '+sector;
-          W.transferEmployer(l,firm);l.extraPay+=Math.round(jobs[l.job][1]*.035);
+          W.transferEmployer(l,firm);
           return 'I accepted a position at '+x.employer+'. The commute has opinions.';
         });
       }
       if(area==='business'&&l.age>=18){
-        for(const [id,[name,sector,cost]] of Object.entries(D.businesses)){
-          option('open-'+id,'Start a '+name.toLowerCase(),sector+' · invest '+money(cost)+' in company capital.','shop',Object.keys(x.companies).length>=8?'Eight businesses already open':'',cost,()=>{
-            const key='firm-'+(++x.sequence),c={id:key,type:id,name:l.name.split(' ')[0]+' '+name,town:l.town,capital:cost,level:1,staff:0,clients:0,manager:false,share:1};
+        for(const [id,[name,sector,baseCost]] of Object.entries(D.businesses)){
+          const cost=Math.round(baseCost*e.cost);
+          const skilled=['software','clinic'].includes(id);
+          const inField=sector===D.sector(l.job)&&(D.professions[l.job]||['physician','nurse','developer','researcher'].includes(l.job));
+          const trained=l.sim.degree||l.sim.professional||inField||x.certs.includes(sector)||(l.sim.workYears||0)>=3;
+          const rule=Object.keys(x.companies).length>=8?'Eight businesses already open':
+            skilled&&!trained?'Needs a degree, sector certification or 3 years of work':'';
+          option('open-'+id,'Start a '+name.toLowerCase(),sector+' · invest '+money(cost)+' in company capital.','shop',rule,cost,()=>{
+            const key='firm-'+(++x.sequence),c={id:key,type:id,name:l.name.split(' ')[0]+' '+name,town:l.town,originYear:year,capital:cost,level:1,staff:0,clients:0,manager:false,share:1};
             x.companies[key]=c;M.tag(l,'business-owner');return 'I opened '+c.name+'. Its first customer wanted a discount.';
           });
         }
         option('freelance','Take a freelance contract','A local client pays for a completed assignment.','pencil','',0,()=>{
-          const fee=Math.round((260+l.stats.smarts*6+(x.practice||0)*30)*e.pay);l.cash+=fee;x.practice=(x.practice||0)+1;W.metrics(l,{reputation:2});return 'The client signed off. I received '+money(fee)+'.';});
+          const fee=Math.round((260+l.stats.smarts*6+Math.min(30,x.practice||0)*30)*e.pay);l.cash+=fee;x.practice=(x.practice||0)+1;W.metrics(l,{reputation:2});return 'The client signed off. I received '+money(fee)+'.';});
       }
       if(area==='company'){
         const c=x.companies[ref];if(!c)return list;
         option('clients','Pitch to a new client','Increase future revenue.','chat',c.clients>=8?'Client book full':'',0,()=>{c.clients++;return 'A new client signed a contract.';});
-        const cost=Math.ceil((D.businesses[c.type]||H.businesses[c.type])[2]*.4*(c.share??1));
-        option('expand','Expand the business','Invest '+money(cost)+' and hire a team member.','shop',c.level>=6?'At capacity':'',cost,()=>{c.capital+=cost;c.level++;c.staff++;return 'We added a team member and expanded capacity.';});
+        const cost=Math.ceil((D.businesses[c.type]||H.businesses[c.type])[2]*(.38+.08*c.level)*Ec.local(l,c.town).cost*(c.share??1));
+        option('expand','Expand the business','Invest '+money(cost)+' and hire a team member.','shop',c.level>=6?'At capacity':c.clients<c.level?'Needs '+c.level+' regular clients':'',cost,()=>{c.capital+=cost;c.level++;c.staff++;return 'We added a team member and expanded capacity.';});
         option('manager',c.manager?'Manage it yourself':'Hire a business manager','Manager pay is included in operating expenses. Managers develop clients.','bag','',0,()=>{delete c.managerId;c.manager=!c.manager;return c.manager?'I hired a manager. They took the office keys.':'I took over day-to-day management.';},false);
         for(const [key,p] of Object.entries(l.people)){
           if(!p.met||!p.active||!M.isAlive(p)||!(M.isFamily(p)||p.role==='Spouse')||M.ageOf(l,p)<18||M.ageOf(l,p)>80)continue;
@@ -227,7 +235,7 @@
         for(const [id,loan] of Object.entries(l.sim.loans)){
           const n=Math.min(loan.balance,Math.max(loan.principal,250),l.cash);
           option('pay-'+id,'Pay '+money(n)+' toward debt',shop.ownedItem(id,l.world.owned[id])?.name||id,'coin',n<=0?'No cash available':'',n,()=>{
-            loan.paidYear=year;loan.balance-=n;if(!loan.balance)delete l.sim.loans[id];return 'The lender credited '+money(n)+' to my account.';
+            loan.manualPaid=(loan.paidYear===year?loan.manualPaid||0:0)+n;loan.paidYear=year;loan.balance-=n;if(!loan.balance)delete l.sim.loans[id];return 'The lender credited '+money(n)+' to my account.';
           },false);
         }
         for(const [kind,targets] of [
@@ -260,8 +268,8 @@
         const a=l.world.owned[ref];if(!a||l.age<18)return list;
         const item=shop.ownedItem(ref,a),loan=l.sim.loans[ref];
         if(item.category==='Vehicle'){
-          for(const [key,color] of [['blue','midnight blue'],['red','racing red'],['silver','brushed silver']])option('paint-'+key,'Respray '+color,'Custom paint · $320.','palette',a.paint===color?'Current finish':'',320,()=>{a.paint=color;return 'My vehicle came back in '+color+'.';},false);
-          option('tune','Upgrade the suspension','Improve condition and resale value · $950.','tools',a.tuned?'Already upgraded':'',950,()=>{a.tuned=true;a.value+=Math.round(540*(a.share||1));a.condition=Math.min(100,a.condition+7);return 'I upgraded the suspension. The pothole is still there.';});
+          for(const [key,color] of [['blue','midnight blue'],['red','racing red'],['silver','brushed silver']])option('paint-'+key,'Respray '+color,'Custom paint · '+money(320)+'.','palette',a.paint===color?'Current finish':'',320,()=>{a.paint=color;return 'My vehicle came back in '+color+'.';},false);
+          option('tune','Upgrade the suspension','Improve condition and resale value · '+money(950)+'.','tools',a.tuned?'Already upgraded':'',950,()=>{a.tuned=true;a.value+=Math.round(540*(a.share||1));a.condition=Math.min(100,a.condition+7);return 'I upgraded the suspension. The pothole is still there.';});
           option('cover',a.insured?'Cancel vehicle insurance':'Insure this vehicle','Annual premium '+money(Math.max(90,Math.round(a.value*.022)))+'. Covers most collision damage.','key','',0,()=>{a.insured=!a.insured;return a.insured?'The insurer issued my policy.':'I cancelled the policy.';},false);
         }
         if(item.category==='Property'){
@@ -270,14 +278,14 @@
           option('tenant',a.tenant?'End the current lease':'Screen and sign a tenant',a.tenant?'The unit stays vacant until relet.':'A full lease brings higher rent and turnover risk.','people','',0,()=>{
             if(a.tenant){a.tenant=null;a.vacant=true;return 'The tenant returned the keys.';}a.tenant={name:['Lee','Rivera','Okafor','Chen','Singh'][M.hash(ref+year)%5],since:year};a.vacant=false;return 'I signed a lease with '+a.tenant.name+'.';},false);
           option('manager',a.manager?'Manage property yourself':'Hire a property manager','Management costs 10% of base rent. Vacancies are filled automatically.','bag','',0,()=>{a.manager=!a.manager;return a.manager?'The property manager took the spare keys.':'I took the spare keys back.';},false);
-          if(loan){const propertyRate=Ec.local(l,item.town||l.town).rate;option('refi','Refinance the mortgage','15 years at '+pct(propertyRate)+' · $250 closing costs.','wallet',credit(l)<45?'Credit needs to recover':'',250,()=>{
+          if(loan){const propertyRate=Ec.local(l,item.town||l.town).rate;option('refi','Refinance the mortgage','15 years at '+pct(propertyRate)+' · '+money(250)+' closing costs.','wallet',credit(l)<45?'Credit needs to recover':'',250,()=>{
             loan.rate=propertyRate;loan.principal=Math.max(1,Math.ceil(loan.balance/15));return 'I replaced the mortgage terms. The balance carried over.';});}
         }
       }
       if(area==='offer'){
         const item=shop.offer(l,ref);if(!item||item.category!=='Vehicle'||l.age<18)return list;
         const down=Math.ceil(item.price*.2),rate=e.rate+.018,annualPayment=(item.price-down)*(.2+rate);
-        const capacity=S.budget(l).gross*.36+Math.max(0,l.cash-down)*.2;
+        const capacity=S.borrowingCapacity(l,down);
         option('finance','Finance this vehicle','20% down '+money(down)+' · 5 years at '+pct(rate)+'.','wallet',!l.sim.license?'Driver’s license required':credit(l)<40?'Credit needs to recover':capacity<annualPayment?'More income or savings needed':'',down,()=>{
           shop.take(l,item);const balance=item.price-down;l.sim.loans[ref]={balance,principal:Math.ceil(balance/5),rate};return 'I financed '+shop.title(item)+'. The lender kept a copy of the keys on paper.';});
         for(const [id,a] of Object.entries(l.world.owned)){
@@ -293,15 +301,15 @@
           for(const [id,title] of [['work','Apply for a work visa'],['study','Apply for a study visa'],['independent','Apply through savings']]){
             const condition=id==='work'?(!working(l)&&!Object.keys(x.companies).length?'Job or business required':''):id==='study'?(!l.sim.program?'University enrollment required':''):(l.cash<papers.reserve*4+1800?'Settlement savings of '+money(papers.reserve*4+1800)+' required':'');
             const record=(l.sim.offenses||[]).some(o=>o.verdict==='Convicted'&&l.age-(o.age??0)<3);
-            option(id,title,'Two-year permit · $150 application fee.','map',record?'Recent conviction under review':papers.valid&&papers.permit.until>=year+2?'Permit already current':condition,150,()=>{
+            option(id,title,'Two-year permit · '+money(150)+' application fee.','map',record?'Recent conviction under review':papers.valid&&papers.permit.until>=year+2?'Permit already current':condition,150,()=>{
               x.permits[papers.country]={kind:id==='study'?'Study visa':id==='work'?'Work visa':'Independent visa',since:papers.permit?.since??year,until:year+2};return 'My application was approved through '+(year+2)+'.';});
           }
-          if(papers.home)option('residence','Apply for permanent residency','Three continuous years here, no recent conviction and $350.','home',year-x.since<3?'Needs three years of residence':!papers.valid?'Renew your permit first':(l.sim.offenses||[]).some(o=>o.verdict==='Convicted'&&l.age-(o.age??0)<3)?'Recent conviction under review':'',350,()=>{x.permits[papers.country]={kind:'Resident',since:year};return 'My permanent residence card arrived.';});
+          if(papers.home)option('residence','Apply for permanent residency','Three continuous years here, no recent conviction and '+money(350)+'.','home',year-x.since<3?'Needs three years of residence':!papers.valid?'Renew your permit first':(l.sim.offenses||[]).some(o=>o.verdict==='Convicted'&&l.age-(o.age??0)<3)?'Recent conviction under review':'',350,()=>{x.permits[papers.country]={kind:'Resident',since:year};return 'My permanent residence card arrived.';});
         }
-        if(papers.home&&!papers.citizen)option('citizen','Apply for citizenship','Five continuous years and permanent residence · $600.','flag',!papers.permanent?'Permanent residence required':year-x.since<5?'Needs five years of residence':(l.sim.offenses||[]).some(o=>o.verdict==='Convicted'&&l.age-(o.age??0)<5)?'Five years with a clear record required':'',600,()=>{x.passports.push(papers.country);M.tag(l,'naturalized');return 'I took the citizenship oath. They spelled my name correctly.';});
+        if(papers.home&&!papers.citizen)option('citizen','Apply for citizenship','Five continuous years and permanent residence · '+money(600)+'.','flag',!papers.permanent?'Permanent residence required':year-x.since<5?'Needs five years of residence':(l.sim.offenses||[]).some(o=>o.verdict==='Convicted'&&l.age-(o.age??0)<5)?'Five years with a clear record required':'',600,()=>{x.passports.push(papers.country);M.tag(l,'naturalized');return 'I took the citizenship oath. They spelled my name correctly.';});
       }
       if(area==='estate'&&l.age>=18){
-        option('witness','Have the will witnessed','Record signed instructions and reduce disputes · $180.','letter',x.witness===l.sim.will?'Current will already witnessed':'',180,()=>{x.witness=l.sim.will;return 'Two witnesses signed. Neither got the good pen.';});
+        option('witness','Have the will witnessed','Record signed instructions and reduce disputes · '+money(180)+'.','letter',x.witness===l.sim.will?'Current will already witnessed':'',180,()=>{x.witness=l.sim.will;return 'Two witnesses signed. Neither got the good pen.';});
         if(S.children(l).length>1)for(const [id,p] of S.children(l)){
           option('weight-'+id,'Leave a double share to '+p.name,'Other children each receive one share.','people',x.double===id&&l.sim.will==='equal'?'Current plan':'',0,()=>{l.sim.will='equal';x.double=id;delete x.witness;return 'I recorded two shares for '+p.name+' and one for each other child.';},false);
         }
@@ -361,7 +369,7 @@
       if(here.phase!==x.phase&&here.phase!=='Steady')log(l,'World',here.phase+' in '+G.cities[l.town].name,'Local unemployment reached '+pct(here.unemployment)+'. Lenders quoted '+pct(here.rate)+'.');
       if(year===here.baseYear)log(l,'World',here.project,G.cities[l.town].name+' reported '+here.project.toLowerCase()+'. Local jobs and property prices changed.');
       if(!x.worldHistory)x.worldHistory=[];
-      x.worldHistory.push({year,town:l.town,phase:here.phase,industry:here.sector,unemployment:Math.round(here.unemployment*1000)/10});
+      x.worldHistory.push({year,town:l.town,phase:here.phase,industry:here.hiringName||here.sector,unemployment:Math.round(here.unemployment*1000)/10});
       if(x.worldHistory.length>24)x.worldHistory.shift();
       x.phase=here.phase;
       recordAmbitions(l,x);
@@ -385,7 +393,7 @@
       x.passports=[...new Set([Ec.keyOf(child,child.sim.birthplace),...px.passports])];x.since=child.born+child.age;
       if(!x.passports.includes(Ec.keyOf(child)))x.permits[Ec.keyOf(child)]={kind:'Resident',since:x.since};
       Kin.inherit(l,child);
-      if(part.contested){x.dispute={amount:part.contested};log(child,'Family','Inheritance disputed','The executor held '+money(part.contested)+' until the family settles the dispute.');}
+      if(part.contested){x.dispute={amount:part.contested};log(child,'Family','Inheritance disputed','The executor held '+H.money(child,part.contested)+' until the family settles the dispute.');}
     }
     return {state,activate,reconcileBirthAmbition,actions,perform,annual,moved,inherit,credit,shares,portfolio,companyValue,expenses,businessYear,ambitions,funds,data:D,economy:Ec,kin:Kin};
   }

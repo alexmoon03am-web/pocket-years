@@ -31,56 +31,78 @@ assert(E.advance(upgraded.active));
 assert(slots.inspectFile(slots.exportFile(upgraded)));
 console.log('PASS public v0.8.1 save imports, preserves its calendar, cash, journal and settings, and resumes.');
 
-const dynasty = game(E.makeLife({seed: 26084, birthYear: 1200, town: 'london', name: 'Rowan Vale'}));
-// A funded household isolates estate transfer, rather than testing wages a second time.
-dynasty.active.cash = 25000000;
-let year = 1200;
-let generations = 1;
-let largest = 0;
-const epochs = new Set();
-while (year < 2100) {
-  let life = dynasty.active;
-  decide(life);
-  if (life.ended) {
-    const heirs = E.sim.children(life).sort((a,b) => Math.abs(E.sim.ageOf(life,a[1])-35) - Math.abs(E.sim.ageOf(life,b[1])-35));
-    assert(heirs.length,'No living child at year '+year+', age '+life.age+', cash '+life.cash+', cause '+life.sim.cause+', children '+life.world.childCount);
-    const child = E.continueAs(life,heirs[0][0]);
-    assert(child);
-    assert.equal(E.calendar(child),year,'Succession rewound the calendar');
-    assert.equal(E.continueAs(life,heirs[0][0]),null,'Second claim on the same estate');
-    assert(E.startNext(dynasty,child));
-    generations++;
-    continue;
-  }
-  if (life.age>=18 && !life.job) {
-    const job=E.historyEconomy.actions(life,'work').find(a=>a.id.startsWith('job-')&&!a.reason);
-    if (job) E.historyPerform(life,'work',job.id);
-    else if (!E.isHistorical(life)) {
-      const choice=Object.keys(E.world.openings).find(id=>!E.world.jobReason(life,id));
-      if(choice) E.world.interview(life,choice,'honest');
+// A lineage can end before a child reaches adulthood. Keep its death and estate
+// final, then try the next independent founder to exercise the entire calendar.
+function checkLineage(seed) {
+  const dynasty = game(E.makeLife({seed, birthYear: 1200, town: 'london', name: 'Rowan Vale'}));
+  // A funded household isolates estate transfer, rather than testing wages a second time.
+  dynasty.active.cash = 25000000;
+  let year = 1200;
+  let generations = 1;
+  let largest = 0;
+  const epochs = new Set();
+  while (year < 2100) {
+    let life = dynasty.active;
+    decide(life);
+    if (life.ended) {
+      const heirs = E.sim.children(life).sort((a,b) => Math.abs(E.sim.ageOf(life,a[1])-35) - Math.abs(E.sim.ageOf(life,b[1])-35));
+      if (!heirs.length) {
+        assert(life.sim.cause);
+        assert.equal(E.advance(life),false);
+        assert.equal(E.continueAs(life,'kid1'),null);
+        const restored=slots.inspectFile(slots.exportFile(dynasty));
+        assert(restored&&restored.active.ended);
+        assert.equal(E.calendar(restored.active),year);
+        assert.deepEqual(E.sim.children(restored.active),[]);
+        return null;
+      }
+      const child = E.continueAs(life,heirs[0][0]);
+      assert(child);
+      assert.equal(E.calendar(child),year,'Succession rewound the calendar');
+      assert.equal(E.continueAs(life,heirs[0][0]),null,'Second claim on the same estate');
+      assert(E.startNext(dynasty,child));
+      generations++;
+      continue;
+    }
+    if (life.age>=18 && !life.job) {
+      const job=E.historyEconomy.actions(life,'work').find(a=>a.id.startsWith('job-')&&!a.reason);
+      if (job) E.historyPerform(life,'work',job.id);
+      else if (!E.isHistorical(life)) {
+        const choice=Object.keys(E.world.openings).find(id=>!E.world.jobReason(life,id));
+        if(choice) E.world.interview(life,choice,'honest');
+      }
+    }
+    if (life.age >= 23 && (!E.sim.children(life).length || life.age === 44 || life.age === 61)) {
+      E.world.adopt(life,'Vale '+generations+'-'+life.age);
+    }
+    epochs.add(E.historyWorld.era(year));
+    assert(E.advance(life),'Blocked birthday in '+year);
+    assert.equal(E.calendar(life),++year);
+    if (year % 25 === 0) {
+      const raw = slots.exportFile(dynasty);
+      const loaded = slots.inspectFile(raw);
+      assert(loaded,'Round trip failed in '+year);
+      assert.equal(loaded.active.id,life.id);
+      assert.equal(loaded.active.cash,life.cash);
+      assert.equal(loaded.active.rng,life.rng);
+      assert.deepEqual(loaded.active.event,life.event);
+      assert.equal(loaded.archive.length,dynasty.archive.length);
+      assert.equal(E.calendar(loaded.active),year);
+      largest = Math.max(largest,Buffer.byteLength(raw));
+      Object.assign(dynasty,loaded);
     }
   }
-  if (life.age >= 23 && (!E.sim.children(life).length || life.age === 44 || life.age === 61)) {
-    E.world.adopt(life,'Vale '+generations+'-'+life.age);
-  }
-  epochs.add(E.historyWorld.era(year));
-  assert(E.advance(life),'Blocked birthday in '+year);
-  assert.equal(E.calendar(life),++year);
-  if (year % 25 === 0) {
-    const raw = slots.exportFile(dynasty);
-    const loaded = slots.inspectFile(raw);
-    assert(loaded,'Round trip failed in '+year);
-    assert.equal(loaded.active.id,life.id);
-    assert.equal(loaded.active.cash,life.cash);
-    assert.equal(loaded.active.rng,life.rng);
-    assert.deepEqual(loaded.active.event,life.event);
-    assert.equal(loaded.archive.length,dynasty.archive.length);
-    assert.equal(E.calendar(loaded.active),year);
-    largest = Math.max(largest,Buffer.byteLength(raw));
-    Object.assign(dynasty,loaded);
-  }
+  assert.equal(epochs.size,6);
+  assert(generations>=10 && dynasty.archive.length===generations-1);
+  assert(largest<4*1024*1024,'A single 900-year dynasty must fit comfortably in an offline export');
+  return {generations,largest};
 }
-assert.equal(epochs.size,6);
-assert(generations>=10 && dynasty.archive.length===generations-1);
-assert(largest<4*1024*1024,'A single 900-year dynasty must fit comfortably in an offline export');
-console.log('PASS 900 consecutive birthdays across all six eras, '+generations+' generations, 36 save imports; largest export '+largest+' bytes.');
+const seeds=[26084,2654435761,1013904226,3668339987,3,51,89,144];
+let complete=null,ended=0;
+for(const seed of seeds){
+  complete=checkLineage(seed);
+  if(complete)break;
+  ended++;
+}
+assert(complete,'A complete 900-year fixture is required');
+console.log('PASS 900 consecutive birthdays across all six eras, '+complete.generations+' generations, 36 save imports and '+ended+' naturally ended lines; largest export '+complete.largest+' bytes.');

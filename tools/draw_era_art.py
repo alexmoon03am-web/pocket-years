@@ -14,7 +14,9 @@ PALETTES = {
     'midcentury': ('#204644','#5c9590','#edaa74','#fbe6ac'),
     'terminal': ('#092c2c','#224e43','#66bc97','#b2e2a7'),
     'web': ('#143a69','#4d89ad','#8bd3df','#e0f9f2'),
-    'future': ('#202b4c','#48527a','#94cacf','#dec9f3')
+    'future': ('#202b4c','#48527a','#94cacf','#dec9f3'),
+    'planetary': ('#173a3b','#32665c','#8dc39b','#eee5af'),
+    'stellar': ('#241e38','#53425e','#b393bc','#f0c583')
 }
 
 
@@ -111,6 +113,32 @@ def draw(name, colors):
         for inset in (6,11):d.ellipse((164+inset,26,193-inset,53),outline=mid)
         for y in (34,44):d.line((166,y,191,y),fill=mid)
         d.polygon([(201,42),(201,65),(207,59),(212,68),(216,65),(210,57),(219,57)],fill=ink,outline=shine)
+    elif name=='planetary':
+        # Terraced water gardens and elevated passenger cans above the canals.
+        d.ellipse((209,8,232,31),fill=shine)
+        for i in range(5):
+            points=[(x,39+7*i+round(6*math.sin(x/32+i*.46))) for x in range(-5,WIDTH+7,3)]
+            d.line(points,fill=accent if i%2 else mid,width=3)
+            d.line([(x,y+2) for x,y in points],fill=ink)
+        d.arc((155,26,220,76),180,360,fill=shine,width=2)
+        d.arc((161,29,215,76),180,356,fill=accent)
+        d.line((73,20,WIDTH,34),fill=ink,width=2)
+        for x,y in [(137,24),(239,31)]:
+            d.line((x,y,x,y+6),fill=shine)
+            d.rounded_rectangle((x-6,y+5,x+7,y+12),radius=2,fill=accent,outline=ink)
+    elif name=='stellar':
+        # A rotating settlement, sun sail and the outer relay beacons.
+        for _ in range(90):
+            d.point((rng.randrange(WIDTH),rng.randrange(HEIGHT)),fill=accent)
+        d.ellipse((142,19,237,60),outline=shine,width=4)
+        d.ellipse((145,25,232,54),outline=accent,width=2)
+        for target in [(143,40),(165,23),(207,22),(235,42),(181,57)]:
+            d.line([(190,39),target],fill=mid,width=2)
+        d.ellipse((185,35,196,43),fill=shine)
+        d.polygon([(247,49),(271,22),(265,54)],fill=accent,outline=shine)
+        d.line((245,56,272,21),fill=ink,width=2)
+        for x,y in [(120,16),(259,11),(91,51)]:
+            d.line((x-3,y,x+3,y),fill=shine);d.line((x,y-3,x,y+3),fill=shine)
     else:
         for _ in range(95):
             x,y=rng.randrange(WIDTH),rng.randrange(HEIGHT)

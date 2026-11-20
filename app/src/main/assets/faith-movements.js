@@ -7,6 +7,7 @@
   const H=node?require('./history-world.js').PocketHistoryWorld:root.PocketHistoryWorld;
   const regions=['europe','africa','westAsia','centralAsia','southAsia','eastAsia','southeastAsia','americas','oceania'];
   const regionNames={europe:'Europe',africa:'Africa',westAsia:'West Asia',centralAsia:'Central Asia',southAsia:'South Asia',eastAsia:'East Asia',southeastAsia:'Southeast Asia',americas:'The Americas',oceania:'Oceania'};
+  const economy=node?require('./history-economy.js').PocketHistoryEconomy:root.PocketHistoryEconomy;
   const year=l=>l.born+l.age;
   const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
   const num=n=>n.toLocaleString('en-US');
@@ -141,6 +142,10 @@
     while(n?.unitedWith&&!active.has(n.id)){active.add(n.id);n=get(l,n.unitedWith);}
     return n;
   }
+  function organization(l,id){
+    // Preserve the original denomination on its deeds and founding records.
+    return canon(l,get(l,id))?.id||id;
+  }
   function related(l,a,b){
     const parents=m=>{const seen=new Set();while(m&&!seen.has(m.id)){seen.add(m.id);m=get(l,m.parentId);}return seen;};
     const pa=parents(a);return Array.from(parents(b)).some(id=>pa.has(id));
@@ -170,10 +175,10 @@
       add('outreach','service','Organize community service','Work with neighbors. A successful project earns local trust.','heart',l.age<12?'Opens at 12':'');
       const others=regions.filter(r=>r!==home);
       add('outreach','visit','Visit another region','Travel and discuss the movement with interested residents.','compass',l.age<18?'Opens at 18':'',{fields:[pick('region','Destination region',others.map(r=>[r,regionNames[r]]))]});
-      add('outreach','teacher','Support a traveling teacher','Use 24 in community funds to sustain a voluntary teaching post.','bag',!leader?'Requires leadership':budget(m)<24?'Needs 24 in the community treasury':'',{fields:[pick('region','Teaching region',regions.map(r=>[r,regionNames[r]]))]});
+      add('outreach','teacher','Support a traveling teacher','Use '+economy.money(l,24)+' in community funds to sustain a voluntary teaching post.','bag',!leader?'Requires leadership':budget(m)<24?'Needs '+economy.money(l,24)+' in the community treasury':'',{fields:[pick('region','Teaching region',regions.map(r=>[r,regionNames[r]]))]});
       add('outreach','revival','Hold a revival gathering','Invite former members and interested neighbors back.','music',crowd<12?'Needs 12 followers':'');
       add('governance','assembly','Convene a community assembly','Hear grievances and spend a year building trust in local leadership.','people',leader?'':'Requires leadership');
-      add('governance','charity','Release community relief funds','Distribute up to 120 from the treasury and improve local welfare.','heart',!leader?'Requires leadership':budget(m)<10?'Needs 10 in the community treasury':'');
+      add('governance','charity','Release community relief funds','Distribute up to '+economy.money(l,120)+' from the treasury and improve local welfare.','heart',!leader?'Requires leadership':budget(m)<10?'Needs '+economy.money(l,10)+' in the community treasury':'');
       add('reform','rename','Rename the movement','Update the public name. The founding charter retains its original wording.','journal',leader?'':'Requires leadership',{fields:[input('name','New name',60,'text',true)]});
       add('reform','reform','Propose a reform','Revise a teaching or leadership model. Some members may leave.','book',leader?'':'Requires leadership',{fields:schema(l).filter(f=>f.key!=='name').map(f=>({...f,default:m[f.key]}))});
       add('reform','split','Form an independent branch','Invite willing followers to support a separate charter.','family-tree',crowd<8?'Needs 8 followers':foundReason(l),{fields:[input('name','Branch name',60,'text',true),input('teachings','Branch teaching',280,'textarea',true)]});
@@ -296,7 +301,7 @@
       text='The assembly heard local concerns and agreed on next year’s priorities.';
     }else if(op==='charity'){
       const amount=Math.min(120,Math.floor(m.treasury*.6));m.treasury-=amount;trust(r,7);influence(r,3);
-      text='The community distributed '+num(amount)+' from its treasury. Local trust rose.';
+      text='The community distributed '+economy.money(l,amount)+' from its treasury. Local trust rose.';
     }else if(op==='rename'){
       if(!uniqueName(l,values.name,m.id)||m.name===values.name)return null;
       const old=m.name;m.name=values.name;text=old+' became '+m.name+'. The original charter is still on file.';
@@ -364,7 +369,7 @@
       if(r.id.endsWith('/visit')){
         r.fields=[pick('region','Destination region',routes.map(id=>[id,regionNames[id]]))];
         r.reason=r.reason||(!routes.length?'No route to another modeled region this year':'')||(l.cash<travelFare(l)?'Insufficient travel funds':'');
-        r.description+=' Personal fare '+num(travelFare(l))+'.';
+        r.description+=' Personal fare '+economy.money(l,travelFare(l))+'.';
       }else if(r.id.endsWith('/teacher'))r.fields=[pick('region','Teaching region',[home,...routes].map(id=>[id,regionNames[id]]))];
     }
     return out;
@@ -410,7 +415,7 @@
       let gain=0,expenses=0;
       for(const region of regionKeys){
         const r=m.regions[region],current=r.followers,seed=m.id+'/'+region+'/'+y;
-        const served=Array.isArray(sites)?sites.reduce((n,s)=>n+(s.faithId===m.id&&H.region(s.town)===region?(s.lastAccounts?.served||0):0),0):0;
+        const served=Array.isArray(sites)?sites.reduce((n,s)=>n+(organization(l,s.faithId)===m.id&&H.region(s.town)===region?(s.lastAccounts?.served||0):0),0):0;
         const works=Math.min(6,m.works.length),localActivity=r.influence*.044+r.teachers*.8+works*.21+Math.min(9,served*.012);
         const reception=chance(seed+'reception'),turnover=.013+chance(seed+'turnover')*.025;
         const fx=r.town?H.marketEffects(l,r.town,y):{cost:1,pay:1,travel:1};
@@ -502,5 +507,5 @@
     return true;
   }
   root.PocketFaithMovements={initialize,annual,found,foundReason,validateDraft,schema,defaultDraft,list,get,regional,followers,record,
-    actions:routeRows,perform,validate,syncAffiliations,regionNames};
+    actions:routeRows,perform,validate,syncAffiliations,organization,regionNames};
 })(typeof module!=='undefined'&&module.exports?module.exports:window);

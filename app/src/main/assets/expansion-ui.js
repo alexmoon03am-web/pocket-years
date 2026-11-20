@@ -15,7 +15,7 @@
     function economic(l,town){const e=X.economy.local(l,town);
       return detail(G.label(town),e.phase+' · unemployment '+rate(e.unemployment)+' · inflation '+rate(e.inflation))+
         '<dl class="ledger">'+[['Typical pay',e.pay],['Living costs',e.cost],['Property prices',e.home]].map(([s,v])=>'<div><dt>'+s+'</dt><dd>'+Math.round(v*100)+' index</dd></div>').join('')+'</dl>'+
-        detail('Local conditions',e.project+' · '+e.sector+' hiring · '+e.decline+' slowing · lending rate '+rate(e.rate)+'. Indices use 100 as the reference level.');}
+        detail('Local conditions',e.project+' · '+(e.hiringName||e.sector)+' hiring · '+(e.decliningName||e.decline)+' slowing · lending rate '+rate(e.rate)+'. Indices use 100 as the reference level.');}
     function parent(key){
       if(!key?.startsWith('xp-'))return null;
       const [area,ref,arg]=key.slice(3).split('~');

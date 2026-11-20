@@ -1,4 +1,5 @@
 'use strict';
+const {expectedLegacySnapshot}=require('./legacy_projection.cjs');
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const base=process.env.POCKET_ASSET_DIR||path.resolve(__dirname,'../app/src/main/assets');
 const E=require(path.join(base,'engine.js')).PocketEngine,S=E.sim,W=E.world,X=E.expansion,G=S.geography,shop=W.shopping;
@@ -108,7 +109,7 @@ X.annual(storm,loss,storm.age);assert(!storm.sim.expansion.companies[failing.id]
 assert(storm.log.some(n=>n.title==='Business closed')&&storm.log.some(n=>n.title==='Made redundant'));
 console.log('PASS specialized professional actions, credentials, local salary, new employer and team, family company manager payroll, balanced statements, recession layoffs and insolvency.');
 
-const multi=adult();action(multi,'business','open-clinic');action(multi,'business','open-hotel');
+const multi=adult();multi.sim.degree='Science';action(multi,'business','open-clinic');action(multi,'business','open-hotel');
 for(const h of shop.inventory(multi,'keyline').slice(0,2))assert(W.trade(multi,h.id,'buy'));
 action(multi,'bills','manage-business');assert(Object.values(multi.sim.expansion.companies).every(c=>c.manager));
 action(multi,'bills','release-business');assert(Object.values(multi.sim.expansion.companies).every(c=>!c.manager));
@@ -150,7 +151,7 @@ console.log('PASS family tree, grandchildren, loan memories, reconciliations, in
 const store=new Map(),storage={getItem:k=>store.has(k)?store.get(k):null,setItem:(k,v)=>store.set(k,v)};
 const legacy=JSON.parse(fs.readFileSync(path.join(__dirname,'fixtures/upgrade-0.7.1.json'),'utf8'));
 store.set(K,JSON.stringify(legacy));let disk=Saves.open(storage,E,K),g=disk.load();
-assert.deepEqual(E.encodeGame(g),legacy);assert(!g.active.sim.expansion);assert(disk.manual(g));
+assert.deepEqual(E.encodeGame(g),expectedLegacySnapshot(E,legacy));assert(!g.active.sim.expansion);assert(disk.manual(g));
 const from071=JSON.stringify(legacy.active.run.world.owned);
 conclude(g.active);assert(E.advance(g.active));assert(g.active.sim.expansion);assert.deepEqual(Object.keys(g.active.world.owned),Object.keys(JSON.parse(from071)));
 assert(disk.save(g));const a=JSON.stringify(E.encodeGame(g));
@@ -160,10 +161,10 @@ const imported=disk.importFile(secondExport);assert(imported);assert.deepEqual(E
 const bad=JSON.parse(secondExport);bad.game.active.age++;assert.equal(disk.importFile(JSON.stringify(bad)),null);
 assert.equal(disk.importFile('{"__proto__":{}}'),null);assert.equal(disk.importFile('incomplete'),null);
 assert.equal(store.get(K+'.slot.3'),beforeBad);
-assert.equal(JSON.stringify(E.encodeGame(disk.select(1,imported))),a);assert.deepEqual(E.encodeGame(disk.restore()),legacy);
+assert.equal(JSON.stringify(E.encodeGame(disk.select(1,imported))),a);assert.deepEqual(E.encodeGame(disk.restore()),expectedLegacySnapshot(E,legacy));
 const restored=disk.recover();assert.equal(JSON.stringify(E.encodeGame(restored)),a);
 store.set(K,'{interrupted');disk=Saves.open(storage,E,K);const recovered=disk.load();assert(recovered);assert.equal(store.get(K+'.recovery'),'{interrupted');
-assert.deepEqual(E.encodeGame(recovered),legacy);assert.match(disk.message,/Recovered/);
+assert.deepEqual(E.encodeGame(recovered),expectedLegacySnapshot(E,legacy));assert.match(disk.message,/Recovered/);
 const garbled=clone(E.encodeGame(game(heir)));garbled.active.run.simulation.expansion.portfolio.unknown=10;assert.equal(disk.importFile(JSON.stringify(garbled)),null);
 const legacyImport=disk.importFile(JSON.stringify(legacy));assert(legacyImport);assert.equal(legacyImport.archive.length,1);assert.equal(legacyImport.active.event.id,'group-lab');
 const integrity=JSON.parse(store.get(K));integrity.active.firstName='Damaged name';store.set(K,JSON.stringify(integrity));

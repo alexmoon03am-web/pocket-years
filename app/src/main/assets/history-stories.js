@@ -109,15 +109,45 @@
       choice('people','Ask a gardener','The gardener turned the tray around. The drawer went quiet.',{bonds:5,discipline:2}),
       choice('tools','Recalibrate the sensor','The bean was fine. The sensor needed encouragement.',{smarts:4,willpower:3})
     ]),
-    story('future_print',2050,999999,14,'A chair in the queue','A fabrication studio has printed the family chair. Every leg is exactly the same length. There are five.',[
+    story('future_print',2050,2149,14,'A chair in the queue','A fabrication studio has printed the family chair. Every leg is exactly the same length. There are five.',[
       choice('home','Keep it','The chair took up space with unusual conviction.',{joy:5},{keepsake:'Five-legged chair model'}),
       choice('code','Correct the design','My second chair cost one fewer leg.',{smarts:5,discipline:2}),
       choice('gift','Give it to the studio','It became the studio’s most photographed mistake.',{karma:4,bonds:3})
     ]),
-    story('future_transit',2050,999999,16,'The quiet carriage','A transit pod has assigned the entire family silent seats. Somebody is already telling a story.',[
+    story('future_transit',2050,2149,16,'The quiet carriage','A transit pod has assigned the entire family silent seats. Somebody is already telling a story.',[
       choice('chat','Ask for another carriage','The system moved us to “ongoing conversation.” Accurate.',{bonds:5,joy:2}),
       choice('book','Pass notes','We had a long discussion in very small handwriting.',{smarts:3,bonds:3},{keepsake:'Family transit note'}),
       choice('moon','Enjoy the silence','It lasted two stops. A personal record.',{health:3,joy:3})
+    ]),
+    story('reservoir',2150,2499,7,'The reserve gauge','The water board wants people to read the new level gauge. It is mounted where only children can see it.',[
+      choice('pencil','Keep a level diary','I read it for six mornings. The board borrowed my notebook.',{smarts:4,discipline:3},{tag:'reservoir-witness'}),
+      choice('people','Tell your neighbors','We formed a queue of adults taking turns kneeling.',{bonds:5,karma:3}),
+      choice('tools','Ask for a second gauge','They installed one at adult height. Below it they thanked “a resident.”',{willpower:5,joy:2})
+    ]),
+    story('reserveaudit',2150,2499,15,'A disputed reading','Your old reservoir notebook is the only surviving water record from a disputed summer.',[
+      choice('book','Lend it for the audit','The board corrected three bills. I asked for my notebook back.',{karma:5,discipline:2},{keepsake:'Water board receipt'}),
+      choice('people','Read it at the meeting','Every seat was taken. Several people had brought their bills.',{bonds:6,smarts:2}),
+      choice('exit','Keep it private','The notebook stayed home. So did the refund.',{joy:2,bonds:-3})
+    ],{requiredTags:['reservoir-witness']}),
+    story('ferrywindow',2150,2499,12,'Above the clouds','The ferry has assigned you a window seat. An old passenger has never seen the top of a cloud.',[
+      choice('gift','Trade seats','I spent the flight looking at a very happy face.',{karma:5,joy:2}),
+      choice('frame','Share a picture','They sent the picture to everyone they knew, including me.',{bonds:4,joy:2},{keepsake:'Ferry window print'}),
+      choice('chat','Offer to swap halfway','At cruising height we changed seats and bumped heads.',{karma:3,health:-1})
+    ]),
+    story('latepacket',2500,999999,7,'Post for your grandparents','A relay clerk hands you a letter written before you were born. The return address is a ship still in transit.',[
+      choice('people','Read it with the family','Everyone recognized the handwriting. Nobody recognized the joke.',{bonds:6,joy:2},{keepsake:'Dated relay letter'}),
+      choice('pencil','Write to the ship','The clerk stamped my reply for delivery in eleven years.',{smarts:4,karma:3},{tag:'relay-correspondent'}),
+      choice('book','File it in the archive','I found a safe drawer and wrote down which drawer.',{discipline:5,smarts:2})
+    ]),
+    story('packetreply',2500,999999,18,'Return mail','A ship sends a reply to a message you once posted. They have answered a question you no longer remember asking.',[
+      choice('book','Track down the original','I had asked about their cat. It had grandchildren.',{smarts:4,joy:4},{keepsake:'Shipboard cat portrait'}),
+      choice('pencil','Keep the letters going','The next question left on the evening tender.',{discipline:4,bonds:4}),
+      choice('people','Read it at a gathering','The gathering voted to give the cat honorary membership.',{bonds:5,karma:2})
+    ],{requiredTags:['relay-correspondent']}),
+    story('gravitytable',2500,999999,9,'The traveling spoon','The ring is running at low spin. A spoon leaves the lunch table and begins an unusually leisurely career in aviation.',[
+      choice('tools','Catch the spoon','I got it on its second lap.',{health:4,joy:3}),
+      choice('book','Time its orbit','My notes got better marks than my table manners.',{smarts:5,discipline:2}),
+      choice('people','Pass the word down the table','Six people leaned left. The soup survived.',{bonds:4,karma:3})
     ])
   ];
 

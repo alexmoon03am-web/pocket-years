@@ -27,11 +27,15 @@
     if(!p.fullName)p.fullName=p.name.includes(' ')?p.name:p.name+' '+(isFamily(p)?l.name.split(' ').slice(1).join(' ')||pick(surnames,7):pick(surnames,9));
     if(p.generosity===undefined)p.generosity=12+h%83;
     if(p.craziness===undefined)p.craziness=Math.floor(h/19)%100;
-    const historicalJob=historical(l)&&ageOf(l,p)>=18?economy().npcJob(l,h,p.town||l.town):null;
+    const historicalJob=(historical(l)||economy().isFuture(l))&&ageOf(l,p)>=18?economy().npcJob(l,h,p.town||l.town):null;
     if(p.wealth===undefined)p.wealth=historicalJob?Math.round(historicalJob.annual*(.18+h%240/100)):ageOf(l,p)>=18?2000+Math.floor(h/37)%115000:0;
     if(!p.traits)p.traits=[pick(traits,17),pick(traits,283)].filter((x,i,a)=>a.indexOf(x)===i);
     if(!p.job)p.job=ageOf(l,p)>=65?'Retired':ageOf(l,p)>=18?(historicalJob?historicalJob.title:pick(adultJobs,43)):ageOf(l,p)>=5?'Student':'At home';
     return p;
+  }
+  // The reference belongs to a completed sentence; a later conviction invalidates it.
+  function hasWorkReference(l){
+    return l.sim.record>0 && l.sim.referenceFor===l.sim.record;
   }
   function people(l){for(const [k,p] of Object.entries(l.people))person(l,k,p);}
   function initialize(l){
@@ -127,5 +131,5 @@
     for(const n of v.npcs)l.people[n.slot]={...n.facts,name:n.givenName,role:n.relation,bond:n.relationship,id:n.id,gender:n.gender,fullName:n.fullName,generosity:n.generosity,craziness:n.craziness,wealth:n.wealth,job:n.job,traits:n.traits};
     return l;
   }
-  root.PocketModel={hiddenKeys,hash,cash,clamp,tag,ageOf,isAlive,isFamily,person,people,initialize,school,stage,metrics,diff,view,encode,decode};
+  root.PocketModel={hiddenKeys,hash,cash,clamp,tag,hasWorkReference,ageOf,isAlive,isFamily,person,people,initialize,school,stage,metrics,diff,view,encode,decode};
 })(typeof module!=='undefined'&&module.exports?module.exports:window);

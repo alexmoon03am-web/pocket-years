@@ -3,15 +3,17 @@
 (function(root){
   'use strict';
   const node=typeof module!=='undefined'&&module.exports;
+  const future=node?require('./future-epochs.js').PocketFuture:root.PocketFuture;
   function world(){return node?require('./history-world.js').PocketHistoryWorld:root.PocketHistoryWorld;}
   const year=(l,age=l.age)=>l.born+age;
   const enabled=l=>l.sim?.timeline?.historicalRules===true;
   const historical=(l,age=l.age)=>enabled(l)&&year(l,age)<2000;
-  const isFuture=l=>enabled(l)&&year(l)>=2050;
-  function period(y){return y<1500?'medieval':y<1700?'renaissance':y<1900?'industrial':y<2000?'century':y<2050?'digital':'future';}
+  const isFuture=(l,age=l.age)=>enabled(l)&&year(l,age)>=2050;
+  function period(y){return y<1500?'medieval':y<1700?'renaissance':y<1900?'industrial':y<2000?'century':y<2050?'digital':future.chapter(y).id;}
   function hash(text){let h=2166136261;for(const c of String(text))h=Math.imul(h^c.codePointAt(0),16777619);return h>>>0;}
   const clamp=(v,lo=0,hi=100)=>Math.max(lo,Math.min(hi,v));
   const households={
+    ...future.households,
     medieval:[2800,1600,.095,32,'silver units','Harvest helper'],
     renaissance:[3600,2500,.10,24,'trade coins','Workshop helper'],
     industrial:[5800,3200,.07,10,'local notes','Errand runner'],
@@ -23,7 +25,19 @@
     const y=year(l,age),p=period(y),g=world(),place=g.place(town,y);
     const fx=g.marketEffects(l,town,y),base=households[p],seed=l.sim.expansion?.seed||l.id||town;
     const variation=.84+hash(seed+'/'+town+'/'+Math.floor(y/3))%32/100;
-    const pay=(place.wageIndex||1)*variation*(fx.pay||1),cost=(1+(variation-1)*.58)*(fx.cost||1);
+    let pay=(place.wageIndex||1)*variation*(fx.pay||1),cost=(1+(variation-1)*.58)*(fx.cost||1);
+    let home=(place.homeIndex||1)*variation*(fx.home||1),legacyPay=pay;
+    if(y>=2000&&enabled(l)){
+      // Period and digital offers share the city's wage market. Manufacturing
+      // follows tradable input prices more closely than scarce urban land.
+      const economy=node?require('./economy.js').PocketEconomy:root.PocketEconomy;
+      const market=economy.local(l,town,age),reference=economy.priceIndex(seed,place.code,2016);
+      pay=economy.wageIndex(l,town,age);
+      const efficiency=p==='stellar'?.86:p==='planetary'?.93:1;
+      cost=(market.vehicle*.65+market.cost*.35)/reference*efficiency;
+      const localSpace=1+clamp(((place.homeIndex||1)-1)*.15,-.05,.09);
+      home=market.home/reference*localSpace;
+    }
     let currency=base[4];
     if(p==='medieval'||p==='renaissance'){
       if(['americas','oceania'].includes(place.region))currency='trade measures';
@@ -37,17 +51,22 @@
     else if(place.code==='GB'&&y>=1707&&y<2000)currency='pounds';
     if(place.code==='FR'&&y>=1803&&y<2000){currency='francs';denomination=y<1960?.25:3;}
     if(place.code==='JP'&&y>=1871&&y<2000){currency='yen';denomination=y<1945?12:.08;}
-    return {period:p,region:place.region,pay,cost,home:(place.homeIndex||1)*variation*(fx.home||1),
+    return {period:p,region:place.region,pay,legacyPay,cost,home,
       food:base[0],housing:base[1],tax:base[2],denomination,currency,shift:base[5]};
   }
-  function money(l,amount){
+  function money(l,amount,age=l.age,town=l.town){
     const n=Number.isFinite(amount)?amount:0;
-    if(!historical(l)&&!isFuture(l))return (n<0?'−$':'$')+Math.abs(n).toLocaleString('en-US');
-    const p=profile(l);
+    if(!historical(l,age)&&!isFuture(l,age))return (n<0?'−$':'$')+Math.abs(n).toLocaleString('en-US');
+    const p=profile(l,age,town);
     return (n<0?'−':'')+(Math.abs(n)/p.denomination).toLocaleString('en-US',{maximumFractionDigits:2})+' '+p.currency;
+  }
+  // Only pass authored catalog text here, before substituting a player's names or writings.
+  function priceText(l,text){
+    return String(text).replace(/\$(\d+(?:,\d{3})*(?:\.\d+)?)/g,(_,digits)=>money(l,Number(digits.replace(/,/g,''))));
   }
   // [identifier, title, baseline yearly pay, training level, daily work, first year, regions]
   const roles={
+    ...future.roles,
     medieval:[
       ['grower','Tenant farmer',9500,0,'Rotate the field'],['weaver','Weaver',12500,0,'Finish a bolt of cloth'],
       ['smith','Blacksmith',17800,1,'Forge a replacement tool',1200,'europe westAsia africa eastAsia southAsia southeastAsia centralAsia'],
@@ -92,11 +111,24 @@
     const rows=roleRows(l,l.age,town),stock=rows.length?rows:roles.medieval,r=stock[hash(seed)%stock.length];
     return {id:'era-'+r[0],title:r[1],annual:Math.round(r[2]*profile(l,l.age,town).pay)};
   }
-  function wage(l,id,age=l.age){const r=allRoles[id];return r?Math.round((r[2]+(l.job===id?l.extraPay||0:0))*profile(l,age).pay):0;}
+  function contractPay(l,id,amount){
+    const quoted=Math.round(amount),factor=l.world.legacyPayFactor;
+    return factor&&id===l.job&&l.world.contractRole===undefined?Math.round(quoted*factor):quoted;
+  }
+  function wage(l,id,age=l.age){
+    const r=allRoles[id];if(!r)return 0;
+    const experience=l.world.roleYears?.[id]||0;
+    const existing=l.job===id&&l.world.contractRole!==id;
+    const rate=existing?1:Math.min(1,(r[3]>=2?.70:.80)+experience*.017);
+    const p=profile(l,age);
+    const index=existing?(p.legacyPay??p.pay):p.pay;
+    return contractPay(l,id,(r[2]*rate+(l.job===id?l.extraPay||0:0))*index);
+  }
   function youthPay(l,age=l.age){if(!l.sim.timeline?.youthShift||age<14||age>=18)return 0;return Math.round(profile(l,age).food*.18*profile(l,age).pay);}
   function shiftName(l,age=l.age){return profile(l,age).shift;}
   // Asset rows use a purchase price, productive annual income and unlock year.
   const goods={
+    ...future.goods,
     medieval:[
       ['loom','Hand loom','Equipment',2850,190],['pasture','Grazing rights','Property',15700,1100],['field','Cultivated field','Property',20000,1570],
       ['farmhouse','Farmstead','Property',36700,0],['cart','Ox cart','Vehicle',4300,280,1200,'europe africa westAsia eastAsia southAsia southeastAsia centralAsia'],
@@ -122,6 +154,7 @@
     ]
   };
   const concerns={
+    ...future.concerns,
     medieval:[['grain','Grain store',6800,9600],['pottery','Pottery workshop',8700,12700],['boats','River freight service',14600,18100]],
     renaissance:[['atelier','Painting studio',11500,14900],['cloth','Cloth trading house',19200,24500],['cartography','Surveying workshop',13800,17600]],
     industrial:[['works','Tool works',23500,29900],['mill','Textile mill',31500,41600],['rail','Rail freight office',48100,58800,1840]],
@@ -131,6 +164,7 @@
   };
   const businesses={};for(const [era,rows] of Object.entries(concerns))for(const r of rows)businesses['era-'+era+'-'+r[0]]=[r[1],era,r[2],r[3]];
   const diversions={
+    ...future.diversions,
     medieval:[
       ['market','Attend the seasonal market','joy',5,0,'I traded gossip. It kept its value.'],['weave','Practice weaving','smarts',5,0,'The cloth came out narrower than planned.'],
       ['games','Join the village games','health',5,40,'I ran. Somebody kept score.'],['kin','Share a family supper','bonds',6,64,'Everyone came hungry. One person brought a spoon.']
@@ -146,13 +180,17 @@
     ],digital:[['website','Build a personal website','smarts',6,0,'The visitor counter finally reached two.'],['podcast','Record a podcast','joy',5,95,'The loudest guest was the refrigerator.',2005]],
     future:[
       ['sim','Train in a gravity simulator','health',7,210,'The floor moved. I took it personally.'],['gardens','Tour a floating garden','joy',7,80,'The tomatoes had a better view than I did.'],
-      ['lab','Practice habitat repair','smarts',6,0,'The practice leak stayed inside the practice room.'],['clinic','Visit a regenerative clinic','health',13,550,'They printed a replacement cartilage patch.']
+      ['lab','Practice habitat repair','smarts',6,0,'The practice leak stayed inside the practice room.']
     ]
   };
   function validListing(id,item){
     if(!item||item.historical!==true||item.id!==id||typeof id!=='string'||!id.startsWith('deed_')||typeof item.town!=='string')return false;
     if(!Number.isInteger(item.listedYear)||item.listedYear<1200||!Number.isInteger(item.built)||item.built>item.listedYear)return false;
-    const row=goods[period(item.listedYear)].find(r=>'era-'+r[0]===item.type);
+    const issued=period(item.listedYear);
+    // Before 1.2 every future year used the orbital market. Those issued
+    // deeds and their original terms remain valid in personal and NPC estates.
+    const row=goods[issued].find(r=>'era-'+r[0]===item.type)||
+      (issued!=='future'&&item.listedYear>=2050&&goods.future.find(r=>'era-'+r[0]===item.type));
     return !!row&&row[1]===item.name&&row[2]===item.category&&Number.isSafeInteger(item.price)&&item.price>0&&
       Number.isSafeInteger(item.rent)&&item.rent>=0&&Number.isFinite(item.condition)&&item.condition>=0&&item.condition<=100&&
       Number.isFinite(item.change)&&item.change>=-.2&&item.change<=.1;
@@ -165,12 +203,14 @@
     return ['Property','Vehicle','Equipment'].flatMap(cat=>rotate(rows.filter(r=>r[2]===cat))).map(r=>{
       const id=['deed',l.id,l.town,y,r[0]].join('_'),condition=54+hash(id)%45;
       const price=Math.max(1,Math.round(r[3]*(r[2]==='Property'?p.home:p.cost)*(.63+.004*condition+hash(id+'quote')%14/100)));
-      return {id,type:'era-'+r[0],historical:true,name:r[1],category:r[2],price,condition,listedYear:y,built:y-(r[2]==='Property'?hash(id+'built')%42:hash(id+'built')%5),
+      const first=future.chapter(y)?.first||1200;
+      return {id,type:'era-'+r[0],historical:true,name:r[1],category:r[2],price,condition,listedYear:y,built:Math.max(first,r[5]||first,y-(r[2]==='Property'?hash(id+'built')%42:hash(id+'built')%5)),
         rent:Math.round(r[4]*price/r[3]),town:l.town,commercial:commercial(r),icon:r[2]==='Property'?'home':r[2]==='Vehicle'?'compass':'tools',
         change:r[2]==='Property'?.006:r[2]==='Vehicle'?-.045:-.018,resale:.92,age:18};
     });
   }
   const learning={
+    ...future.learning,
     medieval:['Learn from the household','Practice a craft with a master','Keep a market account'],
     renaissance:['Copy a manuscript','Study in a workshop','Study navigation and measurement'],
     industrial:['Attend the reading room','Take a mechanics class','Draw a machine plan'],
@@ -178,14 +218,52 @@
     digital:['Take a web design class','Learn digital production','Complete a network course'],
     future:['Visit a habitat classroom','Train with a fabrication tutor','Study orbital navigation']
   };
+  function companyCapacity(l,c,age){
+    const running=Object.values(l.sim.expansion?.companies||{}).filter(f=>!f.manager).length;
+    const employed=l.job&&!['student','retired'].includes(l.job);
+    const attention=c.manager?1:1/(1+Math.max(0,running-1)*.22+(employed?.12:0));
+    const maturity=Number.isInteger(c.originYear)?Math.min(1,.78+.11*Math.max(0,year(l,age)-c.originYear)):1;
+    return attention*maturity;
+  }
   function companyQuote(l,c,age=l.age){
     const cfg=businesses[c.type],p=profile(l,age,c.town),fraction=c.share??1;
     const cycle=.75+hash((l.sim.expansion?.seed||l.id)+'/'+c.town+'/'+year(l,age))%45/100;
-    const rev=Math.round(cfg[3]*c.level*fraction*p.pay*cycle*(1+.065*(c.clients||0)));
+    let demand=1;
+    if(year(l,age)>=2050&&future.industries[cfg[1]]){
+      const economy=node?require('./economy.js').PocketEconomy:root.PocketEconomy;
+      const market=economy.local(l,c.town,age),sector=future.firmSectors[c.type.slice(('era-'+cfg[1]+'-').length)];
+      demand=1+market.cycle*.12+(market.sector===sector?.14:market.decline===sector?-.12:0);
+    }
+    const rev=Math.round(cfg[3]*c.level*fraction*p.pay*cycle*demand*(1+.065*(c.clients||0))*companyCapacity(l,c,age));
     const managerPay=c.manager?Math.round(cfg[3]*.12*c.level*p.cost*fraction):0;
     const operating=Math.round(cfg[3]*(.63*c.level+.035*(c.staff||0))*fraction*p.cost)+managerPay;
     const net=rev-operating,retained=net>=0?Math.floor(net*.18):Math.max(-c.capital,net);
     return {id:c.id,revenue:rev,operating,managerPay,retained,payout:net-retained,net};
+  }
+  function payRoom(l,base,rank){
+    const experience=Math.min(18,l.sim.workYears||0);
+    const ceiling=base*(.09+.09*Math.min(3,rank)+.005*experience);
+    return Math.max(0,Math.floor(ceiling)-(l.extraPay||0));
+  }
+  function reviewReason(l,base,promotion=false){
+    if(!base||l.age<18||['retired','student'].includes(l.job))return 'An active paid role is required';
+    const rank=l.world.level||0,tenure=l.age-l.world.since;
+    if(promotion&&rank>=3)return 'Highest rank in this role';
+    if(l.world.payReviewYear===year(l))return 'Pay reviewed this year';
+    const years=promotion?[1,3,6][rank]:1;
+    if(tenure<years)return 'Needs '+years+' '+(years===1?'year':'years')+' in this position';
+    const required=promotion?70+rank*5:62;
+    if(l.world.performance<required)return 'Needs '+required+'% performance';
+    return payRoom(l,base,rank+Number(promotion))?'':'Top of the current pay band';
+  }
+  function settleReview(l,base,rate,approved,promotion=false){
+    if(reviewReason(l,base,promotion))return 0;
+    l.world.payReviewYear=year(l);
+    if(!approved)return 0;
+    if(promotion)l.world.level++;
+    const increase=Math.min(payRoom(l,base,l.world.level),Math.max(1,Math.round(base*rate)));
+    l.extraPay=(l.extraPay||0)+increase;
+    return increase;
   }
   function options(l,area){
     if(!enabled(l)||!l.sim.expansion)return [];
@@ -209,22 +287,31 @@
     }
     if(area==='work'&&!adult&&l.age>=14){
       const salary=Math.round(p.food*.18*p.pay);
-      add('shift',p.shift,'Part-time · '+costText(salary)+' per year.','coin',0,t.youthShift?'Already employed':'',()=>{t.youthShift=true;return 'I signed on for part-time work. Pay comes on my birthday.';});
+      add('shift',p.shift,'Part-time · '+costText(salary)+' per year.','coin',0,t.youthShift?'Already employed':'',()=>{l.world.partJob=null;l.world.partSince=null;t.youthShift=true;return 'I signed on for part-time work. Pay comes on my birthday.';});
       if(t.youthShift)add('endshift','Leave the part-time job','Give up future wages.','exit',0,'',()=>{delete t.youthShift;return 'I finished my last shift.';});
     }
     if(area==='work'&&adult){
       const role=allRoles[l.job];
       if(role){
         add('practice',role[4],'Improve performance in your current job.','tools',0,'',()=>{l.world.performance=clamp(l.world.performance+15);stat('smarts',2);stat('health',-1);return 'I finished the job. My supervisor checked it twice.';});
-        add('advance','Negotiate a higher wage','Needs 65% performance.','trend',0,l.world.performance<65?'Needs 65% performance':l.world.level>=5?'Top wage reached':'',()=>{
-          l.extraPay+=(Math.round(role[2]*.12));l.world.level++;l.world.performance-=8;return 'The new wage went into the accounts.';});
+        add('advance','Negotiate a higher wage','Review your pay grade after service in this role.','trend',0,reviewReason(l,role[2],true),()=>{
+          settleReview(l,role[2],.095,true,true);l.world.performance-=8;return 'The new wage went into the accounts.';});
         add('quit','Leave this occupation','Give up future wages.','exit',0,'',api=>{changeJob(l,null,api);return 'I left the work to somebody else.';});
       }
       const pool=roleRows(l),ordered=pool.slice().sort((a,b)=>hash(l.town+a[0])-hash(l.town+b[0]));
       const base=ordered.find(r=>r[3]===0),regional=ordered.filter(r=>r[6]),sample=ordered.map((_,i)=>ordered[(i+y)%ordered.length]).slice(0,5);
       for(const r of new Set([base,...sample,...regional].filter(Boolean))){
-        const id='era-'+r[0],qual=r[3]>(training+Math.floor((l.sim.workYears||0)/5));
-        add('job-'+id,r[1],costText(wage(l,id))+' per year'+(r[3]?' · training '+r[3]+'/6':''),'bag',0,id===l.job?'Current occupation':qual?'More training or work experience required':'',api=>{
+        const id='era-'+r[0],years=l.sim.workYears||0,skill=r[3];
+        const practical=skill>=3?3:skill===2?1:0;
+        const preparation=training+(l.sim.degree?2:0);
+        const trained=preparation>=skill||(skill===1&&years>=5);
+        let qual=!trained?'Needs '+skill+' levels of training'+(skill===1?' or 5 years of work':''):
+          years<practical?'Needs '+practical+' '+(practical===1?'year':'years')+' of work experience':'';
+        if(!qual&&r[0]==='knight'&&!t.nobleHouse){
+          const service=['era-warrior','era-retainer'].reduce((n,key)=>n+(l.world.roleYears?.[key]??(l.job===key?Math.max(0,l.age-l.world.since):0)),0);
+          if(service<2)qual='Needs 2 years of guard or court service, or an inherited landed title';
+        }
+        add('job-'+id,r[1],costText(wage(l,id))+' per year'+(r[3]?' · training '+r[3]+'/6':''),'bag',0,id===l.job?'Current occupation':qual,api=>{
           changeJob(l,id,api);if(r[0]==='knight'&&!l.sim.lifeTags.includes('court-service'))l.sim.lifeTags.push('court-service');
           return 'I took work as a '+r[1].toLowerCase()+'. The pay starts on my next birthday.';});
       }
@@ -241,6 +328,25 @@
           stat(r[2],r[3]);if(r[2]==='bonds')for(const n of Object.values(l.people))if(n.active&&n.met&&!Number.isInteger(n.diedAt))n.bond=clamp(n.bond+2);return r[5];});
       }
       const owned=Object.values(l.world.owned).filter(a=>a.listing?.historical);
+      if(isFuture(l)){
+        const [name,result,fee,relief]=future.clinics[p.period];
+        const condition=[...l.sim.illnesses,...l.sim.injuries].sort((a,b)=>b.severity-a.severity)[0];
+        add('clinic',name,condition?'Treatment lowers the severity of '+condition.name+'.':'A health check and supervised recovery.',
+          'heart',Math.round(fee*p.cost),'',()=>{
+            if(condition){condition.treated=true;condition.severity=Math.max(1,condition.severity-relief);}
+            stat('health',condition?7:3);return result+(condition?' My '+condition.name+' was recorded at '+condition.severity+'% severity.':' I left with the results.');
+          });
+        const job=future.contracts[p.period];
+        const equipment=owned.filter(a=>job.types.includes(a.listing.type)&&a.listing.town===l.town)
+          .sort((a,b)=>b.condition-a.condition)[0];
+        if(adult&&equipment){
+          const earned=Math.floor(equipment.listing.rent*.12*(equipment.share??1)*equipment.condition/100);
+          add('supply-order',job.title,'Earn '+costText(earned)+' using your '+equipment.listing.name.toLowerCase()+'. Condition falls by 4%.',
+            'tools',0,equipment.condition<45?'Restore the holding to 45% condition':'',()=>{
+              equipment.condition-=4;l.cash+=earned;stat('discipline',2);return job.result+' I received '+costText(earned)+'.';
+            });
+        }
+      }
       if(owned.some(a=>a.listing.type==='era-horse'))
         add('ride','Ride your horse','Exercise with your own mount.','compass',0,'',()=>{stat('health',5);stat('joy',4);return 'My horse knew the road. It also knew the way home.';});
       const holding=owned.find(a=>a.listing.town===l.town&&['era-field','era-pasture','era-farmhouse','era-estate'].includes(a.listing.type));
@@ -284,8 +390,8 @@
           if(!l.sim.lifeTags.includes('business-owner'))l.sim.lifeTags.push('business-owner');return 'I opened a '+row[1].toLowerCase()+'. The first bill arrived early.';});
       }
       for(const c of firms.filter(c=>businesses[c.type])){
-        const cfg=businesses[c.type],fee=Math.max(1,Math.round(cfg[2]*.35*p.cost*(c.share??1)));
-        add('invest-'+c.id,'Expand '+c.name,'Reinvest '+costText(fee)+' in capacity.','shop',fee,c.level>=6?'At capacity':'',()=>{
+        const cfg=businesses[c.type],fee=Math.max(1,Math.round(cfg[2]*(.32+.075*c.level)*profile(l,l.age,c.town).cost*(c.share??1)));
+        add('invest-'+c.id,'Expand '+c.name,'Reinvest '+costText(fee)+' in capacity.','shop',fee,c.level>=6?'At capacity':c.clients<c.level?'Needs '+c.level+' regular clients':'',()=>{
           c.level++;c.staff++;c.capital+=fee;return c.name+' added another work station.';});
         add('clients-'+c.id,'Find customers for '+c.name,'Increase annual receipts.','people',0,c.clients>=8?'Client book full':'',()=>{c.clients++;return 'A customer placed a regular order.';});
         if(p.period!==cfg[1]){
@@ -301,7 +407,7 @@
   }
   function changeJob(l,id,api){
     if(api?.world)api.world.changeJob(l,id,true);
-    else{l.job=id;l.extraPay=0;l.world.level=0;l.world.since=l.age;l.world.performance=56;l.world.customCareer=true;l.sim.staffJob=null;}
+    else{l.job=id;l.world.contractRole=id;l.extraPay=0;l.world.level=0;l.world.since=l.age;l.world.performance=56;l.world.customCareer=true;l.sim.staffJob=null;}
     if(id){
       l.sim.expansion.employer=allRoles[id][1]+' household';l.track='work';
       if(wage(l,id)>l.sim.peak.salary)l.sim.peak={title:id,salary:wage(l,id)};
@@ -317,5 +423,5 @@
     if(api?.log)api.log(l,kind,o.title,text,delta);else l.log.push({age:l.age,kind,title:o.title,body:text,delta});
     return {title:o.title,text,delta,accent:kind};
   }
-  root.PocketHistoryEconomy={historical,isFuture,enabled,year,period,profile,money,npcJob,jobs,businesses,companyQuote,wage,youthPay,shiftName,listings,validListing,actions,perform,marketEffects:(l,town,y)=>world().marketEffects(l,town,y)};
+  root.PocketHistoryEconomy={historical,isFuture,enabled,year,period,profile,money,priceText,npcJob,jobs,businesses,companyCapacity,companyQuote,reviewReason,settleReview,contractPay,wage,youthPay,shiftName,listings,validListing,actions,perform,marketEffects:(l,town,y)=>world().marketEffects(l,town,y)};
 })(typeof module!=='undefined'&&module.exports?module.exports:window);

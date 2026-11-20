@@ -1,7 +1,7 @@
 /* Presentation only. Actions resolve against the current life in the engine. */
 (function(root){
   'use strict';
-  function create({E,row,detail,subhead,esc,cash,button}){
+  function create({E,row,detail,subhead,esc,cash,appraisalDetail,button}){
     const H=E.historyEconomy,D=E.historyDynasty,W=E.historyWorld;
     const labels={work:'Work and trades',school:'Learning and training',market:'Local market',owned:'Manage possessions',business:'Enterprises',activities:'Daily life',museum:'Family Museum'};
     const icons={work:'bag',school:'book',market:'basket',owned:'key',business:'shop',activities:'sprout',museum:'archive'};
@@ -33,7 +33,7 @@
       const year=owned.acquiredYear??q.listedYear,town=q.town||owned.town||l.town;
       const management=list(l,'owned').filter(o=>o.id==='sell-'+id||o.id==='restore-'+id);
       return {title:q.name,tag:q.category,body:detail('Acquired '+year,location(town,year)+(owned.inherited?' · Inherited':''))+
-        detail('Condition',owned.condition+'% · estimated value '+cash(owned.value))+
+        detail('Condition',owned.condition+'% · estimated value '+cash(owned.value))+appraisalDetail(l,id)+
         (q.category==='Property'?detail('Year built',String(q.built))+detail('Annual receipts',cash(E.world.assetRent(l,id,owned))):'')+
         commands(management.map(o=>row('sheet','hist-review~owned~'+encodeURIComponent(o.id),o.title,o.description,o.icon,o.reason)))};
     }

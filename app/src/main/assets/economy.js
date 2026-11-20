@@ -4,6 +4,7 @@
   const M=typeof module!=='undefined'&&module.exports?require('./model.js').PocketModel:root.PocketModel;
   const G=typeof module!=='undefined'&&module.exports?require('./geography.js').PocketGeography:root.PocketGeography;
   const H=typeof module!=='undefined'&&module.exports?require('./history-economy.js').PocketHistoryEconomy:root.PocketHistoryEconomy;
+  const Future=typeof module!=='undefined'&&module.exports?require('./future-epochs.js').PocketFuture:root.PocketFuture;
   const groups=[
     ['US CA AU NZ DE GB FR NL BE AT SE DK NO FI IE CH IS LU JP KR SG HK MO QA AE IL',1.12,1.10],
     ['ES PT IT SI CZ EE MT CY SA BH KW OM TW PL SK LT LV GR',.90,.91],
@@ -22,9 +23,20 @@
   }
   function costIndex(seed,code,year){
     const key=seed+'/'+code+'/'+year;if(priceCache.has(key))return priceCache.get(key);
-    const start=Math.max(1990,Math.min(2005,year)),end=Math.min(2120,Math.max(2005,year));
-    let index=1;for(let y=start;y<end;y++)index*=1+conditions(seed,code,y).inflation;
-    index=bound(year<2005?1/index:index,.7,6);
+    let index;
+    if(year<=2050){
+      const start=Math.max(1990,Math.min(2005,year)),end=Math.max(2005,year);
+      index=1;
+      for(let y=start;y<end;y++)index*=1+conditions(seed,code,y).inflation;
+      if(year<2005)index=Math.max(.7,1/index);
+    }else{
+      // Long dynasties keep accounts in a common purchasing-power unit. Future
+      // price levels compound in that unit at a gradually damped local rate.
+      const years=year-2050,start=costIndex(seed,code,2050);
+      const drift=.017+sample(code,'long-run prices')*.006;
+      const path=y=>.009*Math.sin(y*.31+sample(seed,code)*8)+.005*Math.sin(y*.73+sample(code,'cycle')*7);
+      index=start*(1+.70*Math.log1p(years*drift/.70))*Math.exp(path(year)-path(2050));
+    }
     if(priceCache.size>6000)priceCache.clear();priceCache.set(key,index);return index;
   }
   function local(l,town=l.town,age=l.age){
@@ -34,7 +46,7 @@
     const group=groups.find(g=>g[0].split(' ').includes(code)),national=sample(code,'wages');
     const wages=(group?group[1]:.72)+national*.16,expenses=(group?group[2]:.77)+sample(code,'living')*.15;
     const metro=metros[city.name]||[city.legacy?.93:1.03+sample(town,'jobs')*.20,city.legacy?.81:.91+sample(town,'housing')*.48];
-    const {cycle,inflation}=conditions(seed,code,year);
+    const {cycle,inflation:nearInflation}=conditions(seed,code,year);
     const phase=cycle<-.42?'Recession':cycle>.45?'Boom':'Steady';
     const block=Math.floor(year/4),sector=sectors[Math.floor(sample(seed,code+'/'+block)*sectors.length)];
     const development=sample(seed,town+'/'+block),project=development>.70?'Rail extension':development<.26?'Factory closure':'Local investment';
@@ -46,13 +58,47 @@
       vehicle:(.72+expenses*.31)*(1+cycle*.09)*index,
       tax:.71+sample(code,'tax')*.60+(sample(town,'localTax')-.5)*.09,unemployment:bound(.065-cycle*.043-change*.24+(1-wages)*.035+(sample(town,'localJobs')-.5)*.011,.018,.18),
       rate:bound(.048+cycle*.017+(1-wages)*.019,.021,.11),yield:bound(.034+cycle*.031,.002,.083),
-      inflation,appreciation:cycle*.061+inflation-.015+change*.29};
+      priceIndex:index,inflation:year<2050?nearInflation:costIndex(seed,code,year+1)/index-1,appreciation:cycle*.061+nearInflation-.015+change*.29};
     if(H.enabled(l)){
+      const chapter=Future.chapter(year);
+      if(chapter){
+        const field=Future.industries[chapter.id];
+        profile.hiringName=field[sector];profile.decliningName=field[decline];
+        profile.project=Future.projects[chapter.id][development>.70?0:development<.26?1:2];
+      }
       const fx=H.marketEffects(l,town,year);
       profile.pay*=fx.pay;profile.cost*=fx.cost;profile.home*=fx.home;profile.vehicle*=fx.travel;
       profile.appreciation+=Math.max(-.05,Math.min(.05,(fx.home-1)*.18));
     }
     if(cache.size>1800)cache.clear();cache.set(cacheKey,profile);return profile;
+  }
+  function contractBase(l,job,jobs){
+    const base=jobs[job]?.[1]||0;
+    // Existing contracts retain their agreed salary when an older save is opened.
+    if(!base||!l.sim.expansion||job===l.job&&l.world.contractRole!==job||job==='retired'||job.startsWith('faith-')||H.jobs[job])return base;
+    const experience=l.world.roleYears?.[job]||0;
+    let entry=1,step=0;
+    if(['physician','lawyer','pharmacist'].includes(job)){entry=.50;step=.024;}
+    else if(['director','executive'].includes(job)){entry=.76;step=.018;}
+    else if(base>=65000){entry=.70;step=.021;}
+    else if(base>=40000){entry=.77;step=.015;}
+    return Math.round(base*Math.min(1,entry+step*experience));
+  }
+  function wageIndex(l,town=l.town,age=l.age){
+    const market=local(l,town,age),seed=l.sim.expansion?.seed||l.id;
+    return market.pay/costIndex(seed,G.cities[town].code,2016);
+  }
+  function existingWageIndex(l,age){
+    const market=local(l,l.town,age),y=l.born+age;
+    if(y<=2050)return market.pay;
+    const seed=l.sim.expansion.seed||l.id,code=G.cities[l.town].code,end=Math.min(2120,y);
+    const key='v1-wages/'+seed+'/'+code+'/'+end;
+    if(!priceCache.has(key)){
+      let index=costIndex(seed,code,2050);
+      for(let t=2050;t<end&&index<6;t++)index*=1+conditions(seed,code,t).inflation;
+      priceCache.set(key,Math.min(6,index));
+    }
+    return market.pay/market.priceIndex*priceCache.get(key);
   }
   function salary(l,job,jobs,age=l.age){
     if(!job||!jobs[job])return 0;
@@ -61,8 +107,13 @@
       return faith.wage(l,job,age);
     }
     if(H.jobs[job])return H.wage(l,job,age);
-    const base=jobs[job][1]+(job===l.job?l.extraPay:0);
-    return !l.sim.expansion||job==='retired'?base:Math.round(base*local(l,l.town,age).pay);
+    const base=contractBase(l,job,jobs)+(job===l.job?l.extraPay:0);
+    if(!l.sim.expansion||job==='retired')return base;
+    // Job-table salaries are quoted in 2016 units. Apply local changes from that
+    // reference date; a worker carrying an older contract keeps its original basis.
+    const established=job===l.job&&l.world.contractRole!==job;
+    const factor=established?existingWageIndex(l,age):wageIndex(l,l.town,age);
+    return H.contractPay(l,job,base*factor);
   }
   function nationality(l){return l.sim.expansion?l.sim.expansion.passports:[keyOf(l,l.sim.birthplace||l.town)];}
   function papers(l,town){
@@ -74,8 +125,8 @@
     const reserve=Math.round(local(l,town).cost*1400/100)*100;
     const employed=!!l.job&&!['retired','student'].includes(l.job)||!!(x&&Object.keys(x.companies).length);
     const qualified=employed||!!l.sim.degree||!!l.world.credential||l.cash>=reserve*4;
-    const restriction=past.length&&l.age-last<3?'Three years since the last conviction required':!qualified?'Job, qualification or settlement savings required':l.cash<reserve+1800?'Keep '+M.cash(reserve)+' after the moving fee':'';
+    const restriction=past.length&&l.age-last<3?'Three years since the last conviction required':!qualified?'Job, qualification or settlement savings required':l.cash<reserve+1800?'Keep '+H.money(l,reserve)+' after the moving fee':'';
     return {country,citizen,valid,permanent,permit,reserve,home:home===country,eligible:!restriction,reason:restriction};
   }
-  root.PocketEconomy={local,salary,sample,keyOf,papers,nationality,sectors};
+  root.PocketEconomy={local,priceIndex:costIndex,wageIndex,salary,contractBase,sample,keyOf,papers,nationality,sectors};
 })(typeof module!=='undefined'&&module.exports?module.exports:window);

@@ -6,7 +6,7 @@ const E=require(path.join(base,'engine.js')).PocketEngine;
 const H=E.historyEconomy;
 function life(year,age=24,town='london'){
   const l=E.makeLife({seed:733,name:'Ada Vale',town,birthYear:year-age});
-  l.age=age;l.cash=1250000;l.sim.timeline.training=4;
+  l.age=age;l.cash=year>=2050?Math.round(2000000*H.profile(l).home):1250000;l.sim.timeline.training=4;
   return l;
 }
 function buy(l,area,id){
@@ -28,9 +28,12 @@ for(const year of [1240,1612,1850,1922,1973,1988,2026,2080,3010]){
   if(year<2000)assert.deepEqual(E.world.shopping.inventory(l,'apex'),[]);
   const opening=H.actions(l,'work').find(a=>!a.reason);
   buy(l,'work',opening.id);assert.equal(E.sim.budget(l).wages,H.wage(l,l.job));
+  buy(l,'work','practice');assert.equal(E.historyPerform(l,'work','advance'),null);
+  l.age++;l.used=[];E.world.birthday(l);
   const initialWage=E.sim.budget(l).wages;
-  buy(l,'work','practice');buy(l,'work','advance');assert.ok(E.sim.budget(l).wages>initialWage);
-  const stock=H.listings(l),product=stock[0];
+  buy(l,'work','advance');assert.ok(E.sim.budget(l).wages>initialWage);
+  const stock=H.listings(l),product=stock.find(item=>item.price<=l.cash/2)||stock[0];
+  l.cash=Math.max(l.cash,product.price*2);
   assert.equal(H.validListing(product.id,product),true);
   buy(l,'market',product.id);assert.equal(E.historyPerform(l,'market',product.id),null);
   assert.equal(E.world.shopping.title(E.world.shopping.ownedItem(product.id,l.world.owned[product.id])),product.name);

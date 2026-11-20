@@ -1,6 +1,7 @@
 /* Calendar-based presentation. A locked theme never changes a simulation date. */
 (function(root) {
   'use strict';
+  const future=typeof module!=='undefined'&&module.exports?require('./future-epochs.js').PocketFuture:root.PocketFuture;
   const eras = [
     {id:'medieval', name:'Medieval Era', first:1200, last:1499, start:1200},
     {id:'renaissance', name:'Renaissance Era', first:1500, last:1699, start:1500},
@@ -18,7 +19,7 @@
     {id:'terminal', name:'Personal computer', first:1980, icon:'keyboard'},
     {id:'web', name:'Early internet', first:2000, icon:'world-index'},
     {id:'modern', name:'Modern journal', first:2020, icon:'journal'},
-    {id:'future', name:'Orbital archive', first:2050, icon:'spark'}
+    ...future.chapters.map(c=>({id:c.theme,name:c.name,first:c.first,icon:c.icon}))
   ];
   function periodForYear(periods,year) {
     for(let i=periods.length-1;i>0;i--)if(year>=periods[i].first)return periods[i];

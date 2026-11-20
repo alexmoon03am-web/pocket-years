@@ -129,7 +129,7 @@
       return lines.length?subhead('Regional membership')+dataGrid(lines):'';
     }
     function sites(l,faithId,localOnly=false){
-      const records=(localOnly?I.records(l,l.town):I.records(l)).filter(s=>!faithId||s.faithId===faithId);
+      const records=(localOnly?I.records(l,l.town):I.records(l)).filter(s=>!faithId||M.organization(l,s.faithId)===faithId);
       return {records,html:block(records.map(s=>link('site',[s.id],s.name,location(l,s.town),'home')).join(''))};
     }
     function tradition(l,id){
@@ -154,7 +154,7 @@
       const s=I.records(l).find(item=>item.id===id);if(!s)return null;
       const plan=I.forecast(l,s);
       return {title:s.name,tag:location(l,s.town),body:dataGrid([
-        ['Affiliation',M.get(l,s.faithId)?.name||C.get(s.faithId)?.name],['Founded',s.founded],['Founder',s.founderName],['Level',s.level],['Condition',s.condition+'%'],['Reputation',s.reputation],
+        ['Affiliation',M.get(l,M.organization(l,s.faithId))?.name||C.get(s.faithId)?.name],['Founded',s.founded],['Founder',s.founderName],['Level',s.level],['Condition',s.condition+'%'],['Reputation',s.reputation],
         ['Treasury',amount(l,s.treasury)],['Land value',amount(l,s.landValue)],['Property value',amount(l,s.propertyValue)],['Services delivered',count(s.serviceTotal)]])+
         (s.deed?subhead('Property deed')+dataGrid([['Original property',s.deed.title],['Acquired',s.deed.acquiredYear],['Donated by',s.deed.donorName],['Donation year',s.deed.year]]):'')+
         subhead('Annual forecast')+dataGrid([['Expected donations',amount(l,plan.contributions)],['Upkeep',amount(l,plan.maintenance)],['Wages',amount(l,plan.wageBill)],['Services funded',count(plan.served)],['Closing balance',amount(l,plan.closing)]])+

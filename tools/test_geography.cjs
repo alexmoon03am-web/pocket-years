@@ -1,4 +1,5 @@
 'use strict';
+const {expectedLegacySnapshot}=require('./legacy_projection.cjs');
 const assert=require('node:assert/strict'),path=require('node:path'),fs=require('node:fs');
 const base=process.env.POCKET_ASSET_DIR||path.join(__dirname,'../app/src/main/assets');
 const E=require(path.join(base,'engine.js')).PocketEngine,S=E.sim,W=E.world,G=S.geography;
@@ -63,7 +64,7 @@ assert.equal(child.sim.birthplace,'cedar');assert.equal(child.town,'osaka');
 assert.equal(child.world.owned[home.id].listing.town,'cedar');assert.equal(child.world.owned[secondHome.id].listing.town,'osaka');
 
 const old=JSON.parse(fs.readFileSync(path.join(__dirname,'fixtures/upgrade-0.6.0-residence.json'),'utf8'));
-const loaded=E.decodeGame(clone(old));assert.deepEqual(E.encodeGame(loaded),old);
+const loaded=E.decodeGame(clone(old));assert.deepEqual(E.encodeGame(loaded),expectedLegacySnapshot(E,old));
 const active=loaded.active;assert.equal(active.town,'osaka');assert.equal(active.sim.birthplace,'toronto');
 assert.equal(S.childBirthplace(active,active.people.kid1),'toronto');
 function settle(x){while(E.blocking(x)){if(x.sim.review)E.acknowledge(x);else if(x.sim.court)S.court(x,'plea');else E.decide(x,0);}}
@@ -71,6 +72,6 @@ assert(E.advance(active));settle(active);
 const balance=active.cash,uk=search('London','GB').id,asset=Object.values(active.world.owned)[0];
 assert(S.relocate(active,uk));assert.equal(active.cash,balance-S.movingFee);assert.equal(asset.town,'toronto');
 assert.equal(active.people.kid1.birthTown,'toronto');assert.equal(E.state(active).country,'UK');
-assert.deepEqual(E.encodeGame(loaded).archive,old.archive);assert.deepEqual(serialize(resume(active)),serialize(active));
+assert.deepEqual(E.encodeGame(loaded).archive,expectedLegacySnapshot(E,old).archive);assert.deepEqual(serialize(resume(active)),serialize(active));
 console.log('PASS '+checked+' real destinations in '+G.countryList.length+' countries and territories, all 195 UN member and observer states, worldwide births, searches, residence changes and local saves.');
 console.log('PASS domestic and international moves, fee and annual limits, household and child birthplace, local housing, property abroad, and an exact v0.6.0 save upgrade.');

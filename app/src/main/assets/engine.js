@@ -113,7 +113,7 @@
   function portrait(life) { return life.age<4?0:life.age<18?1:life.age<65?2:3; }
   function copy(l,line){
     const actor=l.event&&l.people[l.event.person],words={contact:actor?actor.name:'the other person',child:actor?actor.name:'Your child',home:towns[l.town],name:l.name,carer:l.people.carer.name,friend:l.people.friend.name,love:l.people.love.name};
-    return String(typeof line==='string'?line:l.age<18?line.youth:line.adult).replace(/\{(\w+)\}/g,(m,k)=>words[k]===undefined?m:words[k]);
+    return historyEconomy.priceText(l,typeof line==='string'?line:l.age<18?line.youth:line.adult).replace(/\{(\w+)\}/g,(m,k)=>words[k]===undefined?m:words[k]);
   }
   function cleanName(name) { return Array.from(String(name||'').replace(/[\u0000-\u001f\u007f]/g,' ').trim().replace(/\s+/g,' ')).slice(0,32).join(''); }
   function generatedName(life) { return rngItem(life,given)+' '+rngItem(life,family); }
@@ -145,6 +145,7 @@
     life.household=householdFor(life);world.initialize(life);sim.initialize(life);
     if(selected!==undefined)life.sim.timeline={historicalRules:true};
     if(Object.prototype.hasOwnProperty.call(sim.identities,opts.identity))life.sim.identity=opts.identity;
+    if(opts.realism!==undefined)year.setRealism(life,opts.realism);
     if(!opts.successor)sim.populateFamily(life);
     model.initialize(life);life.event={id:null,resolved:true};
     if(!opts.successor){
@@ -194,6 +195,7 @@
         model.person(life,key,p);
       }
     }
+    if(opts.realism!==undefined)year.setRealism(life,opts.realism);
     faithPersonal.customize(life,faithOptions);
     if(life.sim.faithWorld)delete life.sim.faithWorld.institutions;
     faithInstitutions.initialize(life);
@@ -241,6 +243,16 @@
     }
     if(!Number.isInteger(life.household))life.household=householdFor(life);
     world.initialize(life);sim.initialize(life);model.initialize(life);historyDynasty.initialize(life);if(!life.ended&&!archived){year.workplace(life);year.campus(life);}life.version=4;delete life.actions;
+    // An imported future contract may predate the city's new economic history.
+    // Preserve its recorded pay basis once, while subsequent years still respond to the local market.
+    if(life.born+life.age>=2050&&life.age>=18&&life.job&&life.job!=='retired'&&
+        life.world.contractRole===undefined&&life.world.legacyPayFactor===undefined&&Number.isSafeInteger(saved.salary)&&saved.salary>0){
+      const quoted=PocketEconomy.salary(life,life.job,jobs);
+      if(quoted>0&&quoted!==saved.salary){
+        const factor=saved.salary/quoted;
+        if(factor>=.5&&factor<=2)life.world={...life.world,legacyPayFactor:factor};
+      }
+    }
     return life;
   }
   function blocking(l){if(!l.sim)return null;if(l.sim.review)return 'outcome';if(l.sim.court)return 'court';return l.event&&!l.event.resolved?'decision':null;}
@@ -347,7 +359,7 @@
     ];
     if(age>=12 && age<18)list.push(['earn','Volunteer at the market','Help a neighbor set up their stall.','people',{bonds:3,health:-2},'I held the awning. The work was unpaid and windy.']);
     if(age>=18 && age<65)list.push(['earn','Take a side gig','Trade a little energy for pocket money.','coin',{cash:180,health:-2},'The work is done and the money is mine to keep.']);
-    if(age>=12)list.push(['trip',age<18?'Go to the pictures':'Take a day trip',age<18?'A ticket costs $12.':'A return ticket costs $65.','ticket',{cash:age<18?-12:-65,joy:9,bonds:2},'I kept the ticket. Nobody requested a full trip report.']);
+    if(age>=12)list.push(['trip',age<18?'Go to the pictures':'Take a day trip',age<18?'A ticket costs '+historyEconomy.money(life,12)+'.':'A return ticket costs '+historyEconomy.money(life,65)+'.','ticket',{cash:age<18?-12:-65,joy:9,bonds:2},'I kept the ticket. Nobody requested a full trip report.']);
     return list.concat(world.specialActivities(life));
   }
   function actionReason(life,key,cost=0) {
@@ -391,6 +403,7 @@
         model.tag(child,'landed-house');
       }
     }
+    year.inheritRealism(parent,child);
     if(parent.sim.chronicleWorld)child.sim.chronicleWorld=JSON.parse(JSON.stringify(parent.sim.chronicleWorld));
     child.id=p.id;child.name=p.fullName||child.name;child.sim.identity=p.gender||child.sim.identity;
     child.world.owned=portion.assets;child.sim.loans=portion.loans;for(const a of Object.values(child.world.owned))a.at=age;
@@ -417,7 +430,7 @@
     for(const member of Object.values(child.people))if(member.role==='Sibling')delete member.bornAt;
     if(age>=18){child.cash=inherited+(p.wealth||0);child.track='gap';}else child.sim.trust=inherited+(p.wealth||0);
     log(child,'Family','A new generation','I am '+child.name+', age '+age+', the child of '+parent.name+'.');
-    if(inherited)log(child,'Family',age<18?'An inheritance in trust':'My inheritance',sim.money(inherited)+(age<18?' is held until my eighteenth birthday.':' was transferred from the estate.'),age<18?{}:{cash:inherited});
+    if(inherited)log(child,'Family',age<18?'An inheritance in trust':'My inheritance',historyEconomy.money(child,inherited)+(age<18?' is held until my eighteenth birthday.':' was transferred from the estate.'),age<18?{}:{cash:inherited});
     child.event={id:null,resolved:true};expansion.inherit(parent,child,portion);
     if(age>=18&&p.career&&jobs[p.career]){world.changeJob(child,p.career,true);child.track='work';}
     year.campus(child);

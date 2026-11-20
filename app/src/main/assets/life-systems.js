@@ -50,15 +50,23 @@
   const places=geography.places;
   const node=typeof module!=='undefined'&&module.exports;
   const era=node?require('./history-economy.js').PocketHistoryEconomy:root.PocketHistoryEconomy;
+  const future=node?require('./future-epochs.js').PocketFuture:root.PocketFuture;
   const historicWorld=node?require('./history-world.js').PocketHistoryWorld:root.PocketHistoryWorld;
   const sharedGroups=new Set(['company','family','money','pets','custody']);
   function periodAllows(l,a){
     if(!l.sim.timeline?.historicalRules)return true;
     if(a.group==='fame'&&l.born+l.age<2004)return false;
-    if(era.historical(l)&&a.group==='crime')return ['pickpocket','burglary','theft'].includes(a.id);
+    if(era.historical(l)&&a.group==='crime')return ['pickpocket','burglary','theft','work-reference'].includes(a.id);
     return !era.historical(l)||sharedGroups.has(a.group);
   }
   const movingFee=1800;
+  function moveFare(l,town){
+    if(!era.isFuture(l))return movingFee;
+    const y=era.year(l),chapter=future.chapter(y);
+    if(!town||!geography.cities[town])return chapter.fare;
+    const route=geography.international(l.town,town)?1.25:.8;
+    return Math.round(chapter.fare*route*historicWorld.marketEffects(l,town,y).travel);
+  }
   const identities={woman:'Woman',man:'Man',nonbinary:'Nonbinary'};
   const money=n=>(n<0?'−$':'$')+Math.abs(n).toLocaleString('en-US');
   function create(api){
@@ -96,14 +104,20 @@
       const prior=l.sim.loans[id],balance=amount+(prior?prior.balance:0);
       l.sim.loans[id]={balance,principal:Math.ceil(balance/years)};
     }
-    const {budget,settle,plan:estate,tax}=ledgerFactory.create(world,jobs,ageOf);
+    const {budget,settle,hardshipOptions,relief,validateFinance,plan:estate,tax}=ledgerFactory.create(world,jobs,ageOf,{log,apply,blocking:api.blocking});
     function downPayment(item){return Math.ceil(item.price/5);}
+    function borrowingCapacity(l,down=0){
+      const b=budget(l),committed=Object.values(l.sim.loans).reduce((n,d)=>n+d.principal+Math.ceil(d.balance*(d.rate??.04)),0);
+      return Math.max(0,Math.floor(b.gross*.38+Math.max(0,l.cash-down)*.11-committed));
+    }
     function mortgageReason(l,id){
       const item=world.shopping.offer(l,id);
       if(!item||item.category!=='Property'||l.age<18||l.ended||l.sim.prison||l.sim.court||api.blocking(l))return 'Unavailable';
       const down=downPayment(item);
-      if(l.cash<down)return 'Needs '+money(down)+' down';
-      if(budget(l).wages+world.rent(l)<Math.ceil((item.price-down)/15)*2)return 'More annual income needed';
+      if(l.cash<down)return 'Needs '+era.money(l,down)+' down';
+      if(l.born+l.age<(l.sim.finance?.creditUntil||0))return 'Credit is restricted';
+      const annual=Math.ceil((item.price-down)*(1/15+(l.sim.expansion?PocketEconomy.local(l).rate:.04)));
+      if(borrowingCapacity(l,down)<annual)return 'More annual income or savings needed';
       return '';
     }
     function mortgage(l,id){
@@ -112,7 +126,7 @@
       world.shopping.take(l,item);
       addLoan(l,id,item.price-down,15);if(l.sim.expansion)l.sim.loans[id].rate=PocketEconomy.local(l).rate;world.schedule(l,'first-keys',1);
       const delta=apply(l,{cash:-down}),title='Financed '+world.shopping.inSentence(item);
-      const text='I put '+money(down)+' down on '+world.shopping.inSentence(item)+'. The first payment is due on my next birthday.';
+      const text='I put '+era.money(l,down)+' down on '+world.shopping.inSentence(item)+'. The first payment is due on my next birthday.';
       log(l,'Assets',title,text,delta);return {title,text,delta};
     }
     function finish(l,key,kind,title,text,effects={},progress={}){
@@ -147,7 +161,7 @@
         if(method==='loan')addLoan(l,'tuition',p.fee,10);
         startCourse(l,field,l.age+p.years);l.sim.program.funding=method;
         if(method==='scholarship')M.tag(l,'scholarship');
-        const payment=method==='loan'?'I took out a '+money(p.fee)+' student loan.':method==='cash'?'I paid '+money(p.fee)+' in tuition.':'A scholarship covered all '+money(p.fee)+' of my tuition.';
+        const payment=method==='loan'?'I took out a '+era.money(l,p.fee)+' student loan.':method==='cash'?'I paid '+era.money(l,p.fee)+' in tuition.':'A scholarship covered all '+era.money(l,p.fee)+' of my tuition.';
         return finish(l,'course-'+field,'School','Enrolled in '+p.degree,'I enrolled in '+p.degree+'. '+payment,{smarts:3,cash:method==='cash'?-p.fee:0});
       },l=>programReason(l,field));
     }
@@ -178,13 +192,13 @@
         return finish(l,'doctor','Health','Clinic visit',patient.chronic?'Treatment started for '+name+'. Follow-up is on the calendar.':'My '+name+' was treated. The bill was legible.',{cash:-fee,health:12,joy:2});
       }
       return finish(l,'doctor','Health','Annual checkup','The doctor found nothing urgent. I got a receipt.',{cash:-fee,health:3});
-    },l=>l.age>=18&&!l.sim.prison&&l.cash<45?'Needs $45':'');
+    },l=>l.age>=18&&!l.sim.prison&&l.cash<45?'Needs '+era.money(l,45):'');
     add('gym','health','Go to the gym','shoe','Train your fitness. Membership for this visit costs $25.',l=>
-      finish(l,'gym','Health','An afternoon at the gym','I finished one more set than I thought I could.',{cash:-25,health:8,looks:3}),l=>l.age<14?'Opens at 14':l.cash<25?'Needs $25':'');
+      finish(l,'gym','Health','An afternoon at the gym','I finished one more set than I thought I could.',{cash:-25,health:8,looks:3}),l=>l.age<14?'Opens at 14':l.cash<25?'Needs '+era.money(l,25):'');
     add('meditate','health','Meditate','leaf','Take a quiet break and work on your happiness.',l=>
       finish(l,'meditate','Health','A quieter afternoon','I sat still. My phone objected twice.',{joy:5,health:2}),l=>l.age<5?'Opens at 5':'');
-    add('counsel','health','Talk to a counselor','chat','Talk through a difficult year. School sessions are free.',l=>
-      finish(l,'counsel','Health','Someone listened','I spoke for fifty minutes. The counselor took notes.',{cash:l.age<18?0:-60,joy:10}),l=>l.age<6?'Opens at 6':l.age>=18&&l.cash<60?'Needs $60':'');
+    add('counsel','health','Talk to a counselor','chat','A session costs $60. Under 18s attend free.',l=>
+      finish(l,'counsel','Health','Someone listened','I spoke for fifty minutes. The counselor took notes.',{cash:l.age<18?0:-60,joy:10}),l=>l.age<6?'Opens at 6':l.age>=18&&l.cash<60?'Needs '+era.money(l,60):'');
     add('friend','company','Make a new friend','people','Meet someone at school, at work or in your neighborhood.',l=>{
       const taken=Object.values(l.people).map(p=>p.name),available=names.filter(n=>!taken.includes(n));
       const name=rngItem(l,available.length?available:names.map(n=>n+' Lee').filter(n=>!taken.includes(n))),id='friend-'+l.age;
@@ -226,7 +240,7 @@
     },l=>!l.sim.account?'Create an account first':'');
     add('sponsor','fame','Take a sponsorship','tag','Accept a paid offer once you reach 1,000 followers.',l=>{
       const fee=Math.min(25000,Math.round(150+l.sim.followers*.12));
-      return finish(l,'sponsor','Career','A paid collaboration','The sponsor requested one tiny edit. It paid '+money(fee)+'.',{cash:fee},{reputation:2});
+      return finish(l,'sponsor','Career','A paid collaboration','The sponsor requested one tiny edit. It paid '+era.money(l,fee)+'.',{cash:fee},{reputation:2});
     },l=>l.age<18?'Opens at 18':l.sim.followers<1000?'Needs 1,000 followers':'');
     for(const [id,o] of Object.entries(offences)){
       add(id,'crime',o.name,o.icon,'Risk a court hearing, a fine or a sentence.',l=>{
@@ -243,6 +257,16 @@
     }
     add('library','custody','Use the prison library','book','Read and work toward your return home.',l=>
       finish(l,'library','Justice','A library shift','Working in the prison library gave your week a routine.',{smarts:5,joy:2}));
+    add('work-reference','crime','Earn a work reference','letter','Volunteer with a local crew after serving your sentence. The reference can help with employment.',l=>{
+      l.sim.referenceFor=l.sim.record;
+      return finish(l,'work-reference','Career','Earned a work reference','I showed up for the volunteer shifts. The supervisor put that in writing.',
+        {discipline:3,notoriety:-4},{reputation:5});
+    },l=>{
+      if(!l.sim.record)return 'No conviction on record';
+      if(M.hasWorkReference(l))return 'Reference already earned';
+      const recent=l.sim.offenses.some(o=>o.verdict==='Convicted'&&o.age===l.age);
+      return recent?'Return after a year in the community':'';
+    });
     add('yard','custody','Exercise in the yard','shoe','Look after your health while serving your sentence.',l=>
       finish(l,'yard','Justice','Time in the yard','I joined a regular walking group.',{health:5,joy:2}));
     add('appeal','custody','Appeal your sentence','letter','Ask for a review once during this sentence.',l=>{
@@ -252,9 +276,9 @@
     add('repay','money','Make an extra loan payment','wallet','Pay up to $1,000 toward your largest outstanding balance.',l=>{
       const [id,loan]=Object.entries(l.sim.loans).sort((a,b)=>b[1].balance-a[1].balance)[0],amount=Math.min(1000,l.cash,loan.balance);
       loan.balance-=amount;if(!loan.balance)delete l.sim.loans[id];
-      return finish(l,'repay','Assets','An extra loan payment','My outstanding principal fell by '+money(amount)+'.',{cash:-amount});
+      return finish(l,'repay','Assets','An extra loan payment','My outstanding principal fell by '+era.money(l,amount)+'.',{cash:-amount});
     },l=>!debt(l)?'No outstanding loans':l.cash<=0?'No cash available':'');
-    extraActivities.install({add,finish,random,world,jobs,dependence:api.dependence});
+    extraActivities.install({add,finish,random,world,jobs,dependence:api.dependence,price:era.money,annualSalary:l=>PocketEconomy.salary(l,l.job,jobs)});
     function reason(l,id){
       const a=actions[id];if(!a||l.ended)return 'Life complete';
       if(!periodAllows(l,a))return 'Unavailable in this period';
@@ -263,14 +287,23 @@
       if(l.sim.court)return 'Hearing pending';
       return (a.rule&&a.rule(l))||actionReason(l,'sim-'+id);
     }
+    function description(l,id){
+      const a=actions[id];
+      if(era.historical(l)&&id.startsWith('pet-'))return 'Local companion · '+era.money(l,80)+' to adopt.';
+      if(id==='invest'){
+        const rate=l.sim.expansion?PocketEconomy.local(l).yield:.035;
+        return era.priceText(l,a.desc)+' Projected annual yield '+(rate*100).toLocaleString('en-US',{maximumFractionDigits:2})+'%.';
+      }
+      return era.priceText(l,a.desc);
+    }
     function options(l,group){
       return Object.values(actions).filter(a=>a.group===group&&periodAllows(l,a)&&(a.id!=='record-pet-breed'||l.sim.pet&&!l.sim.pet.breed))
-        .map(a=>({id:a.id,title:a.title,icon:a.icon,desc:era.historical(l)&&a.id.startsWith('pet-')?'Local companion · '+era.money(l,80)+' to adopt.':a.desc,reason:reason(l,a.id)}));
+        .map(a=>({id:a.id,title:a.title,icon:a.icon,desc:description(l,a.id),reason:reason(l,a.id)}));
     }
     function fundingReason(l,id,method){
       if(!id.startsWith('course-')||!['loan','cash','scholarship'].includes(method))return 'Unavailable';
       const p=programs[id.slice(7)],base=reason(l,id);if(!p||base)return base||'Unknown course';
-      if(method==='cash'&&l.cash<p.fee)return 'Needs '+money(p.fee);
+      if(method==='cash'&&l.cash<p.fee)return 'Needs '+era.money(l,p.fee);
       if(method==='scholarship'&&l.used.includes('sim-scholarship'))return 'Already applied this year';
       return '';
     }
@@ -298,6 +331,15 @@
       l.sim.offenses.push({offense:actions[c.id].title,age:l.age,verdict:guilty?'Convicted':'Acquitted',fine:guilty?c.fine:0,sentence:years});
       api.campus(l);const result=finish(l,'hearing','Justice',title,text,effects);result.delta=M.diff(before,M.metrics(l,world.netWorth,budget));l.log[l.log.length-1].delta=result.delta;l.sim.review={...result,from:'court'};return result;
     }
+    function deliver(l){
+      const s=l.sim;
+      if(s.expecting){
+        const baby=s.expecting,key='kid'+(++l.world.childCount);s.expecting=null;
+        l.people[key]={name:baby.name,role:'Child',bond:78,active:true,met:true,bornAt:l.age,birthTown:l.town,otherParent:baby.parent,...(baby.parentId?{otherParentId:baby.parentId,town:l.town}:{})};
+        M.person(l,key,l.people[key]);
+        if(!era.historical(l))world.schedule(l,'first-curtain',5,key);log(l,'Family','Welcomed '+baby.name,'The baby arrived. Nobody slept.');
+      }
+    }
     function birthday(l){
       const s=l.sim;
       if(s.prison){s.prison--;if(!s.prison)log(l,'Justice','Released from custody','The gate opened. My sentence was served.');}
@@ -308,22 +350,19 @@
         l.world.credential='college';if(l.job==='student')world.changeJob(l,null,false);
         log(l,'School','Graduated in '+degree,'I received the degree. My résumé got one line longer.');
       }
-      if(s.expecting){
-        const baby=s.expecting,key='kid'+(++l.world.childCount);s.expecting=null;
-        l.people[key]={name:baby.name,role:'Child',bond:78,active:true,met:true,bornAt:l.age,birthTown:l.town,otherParent:baby.parent,...(baby.parentId?{otherParentId:baby.parentId,town:l.town}:{})};
-        if(!era.historical(l))world.schedule(l,'first-curtain',5,key);log(l,'Family','Welcomed '+baby.name,'The baby arrived. Nobody slept.');
-      }
+      deliver(l);
       if(s.pet&&++s.pet.years>=s.pet.lifespan){
         const p=s.pet;
         const text=p.breed?p.name+' ('+p.breed+') was with me for '+p.years+' years.':'My family remembered my '+p.type+' and the years we had together.';
         log(l,'Family','Goodbye to '+p.name,text);s.pet=null;apply(l,{joy:-8});
       }
     }
+    const licenseFee=l=>l.age<18?0:30;
     function licenseReason(l){
       if(era.historical(l))return 'Use the period transport market';
       if(l.age<16)return 'Opens at 16';
       if(l.sim.license)return 'License earned';
-      return actionReason(l,'license',l.age<18?0:30);
+      return actionReason(l,'license',licenseFee(l));
     }
     const drivingTest={
       question:'Which sign has eight sides?',
@@ -333,7 +372,7 @@
     function takeTest(l,answer){
       if(licenseReason(l)||!drivingTest.answers.some(([key])=>key===answer))return null;
       l.used.push('license');const passed=answer===drivingTest.correct;if(passed)l.sim.license=true;
-      const delta=apply(l,{cash:l.age<18?0:-30,joy:passed?4:-2}),title=passed?'Earned a driver’s license':'Driving test result';
+      const delta=apply(l,{cash:-licenseFee(l),joy:passed?4:-2}),title=passed?'Earned a driver’s license':'Driving test result';
       const text=passed?'I passed the road-sign test and received my license. I can now buy a car.':'I missed the sign question. I can try again next year.';
       log(l,'Milestone',title,text,delta);return {title,text,delta};
     }
@@ -342,7 +381,7 @@
       if(l.age<18)return 'Opens at 18';
       if(!geography.cities[town])return 'Unknown destination';
       if(l.town===town)return 'Current home';
-      const base=actionReason(l,'relocate',movingFee);if(base)return base;
+      const base=actionReason(l,'relocate',moveFare(l,town));if(base)return base;
       if(geography.international(l.town,town)){const p=PocketEconomy.papers(l,town);if(!p.citizen&&!p.valid&&!p.eligible)return p.reason;}
       return '';
     }
@@ -368,7 +407,7 @@
         if(moved)api.arrived(l);
         return moved;
       }
-      const from=l.town,abroad=geography.international(from,town);
+      const from=l.town,abroad=geography.international(from,town),fee=moveFare(l,town);
       for(const [,child] of children(l))if(!child.birthTown)child.birthTown=childBirthplace(l,child);
       for(const [id,asset] of Object.entries(l.world.owned)){
         const item=world.shopping.ownedItem(id,asset);
@@ -378,8 +417,8 @@
       l.sim.residences.push({age:l.age,from,to:town});
       api.moved(l,from,town);l.town=town;api.arrived(l);if(l.sim.expansion?.family[l.id])l.sim.expansion.family[l.id].town=town;api.campus(l);l.used.push('relocate');
       const destination=geography.label(town),title=(abroad?'Immigrated to ':'Moved to ')+destination;
-      const text='I moved from '+geography.label(from)+' to '+destination+'. Moving cost '+money(movingFee)+'.';
-      const delta=apply(l,{cash:-movingFee,joy:4});
+      const text='I moved from '+geography.label(from)+' to '+destination+'. Moving cost '+era.money(l,fee)+'.';
+      const delta=apply(l,{cash:-fee,joy:4});
       log(l,'Milestone',title,text,delta);return {title,text,delta};
     }
     function setWill(l,key){
@@ -396,7 +435,7 @@
       if(children(l).length>=3)return 'Heart of the family';
       return null;
     }
-    return {initialize,populateFamily,majors,programs,places,geography,movingFee,childBirthplace,identities,petBreeds,breeds,children,debt,ageOf,fundingReason,budget,settle,mortgageReason,mortgage,startCourse,addLoan,estate,tax,downPayment,licenseReason,drivingTest,takeTest,moveReason,relocate,actions,options,reason,perform,court,birthday,setWill,share,ribbon,money};
+    return {initialize,populateFamily,majors,programs,places,geography,movingFee,moveFare,childBirthplace,identities,petBreeds,breeds,children,debt,ageOf,fundingReason,budget,settle,hardshipOptions,relief,validateFinance,borrowingCapacity,mortgageReason,mortgage,startCourse,addLoan,estate,tax,downPayment,licenseReason,licenseFee,drivingTest,takeTest,moveReason,relocate,actions,options,description,reason,perform,court,birthday,deliver,setWill,share,ribbon,money};
   }
   root.PocketSystems={create,places,identities};
 })(typeof module!=='undefined'&&module.exports?module.exports:window);

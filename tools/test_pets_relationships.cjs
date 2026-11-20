@@ -1,4 +1,5 @@
 'use strict';
+const {expectedLegacySnapshot}=require('./legacy_projection.cjs');
 const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path');
 const {start,base}=require('./interface_host.cjs');
 const E=require(path.join(base,'engine.js')).PocketEngine,W=E.world,S=E.sim;
@@ -40,7 +41,7 @@ for(const type of ['dog','cat']){
 for(const makeUnavailable of [l=>{l.age=17;},l=>{l.cash=79;},l=>{l.sim.prison=1;},l=>{l.ended=true;},l=>{l.event={id:'lost-wallet',resolved:false};}]){
   const l=adult();makeUnavailable(l);noChange(l,()=>S.perform(l,'pet-dog',{name:'Biscuit',breed:'Beagle'}));
 }
-const oldGame=E.decodeGame(clone(oldSave));assert.deepEqual(E.encodeGame(oldGame),oldSave);
+const oldGame=E.decodeGame(clone(oldSave));assert.deepEqual(E.encodeGame(oldGame),expectedLegacySnapshot(E,oldSave));
 const oldDog=oldGame.active,oldPet=clone(oldDog.sim.pet),oldCash=oldDog.cash,oldRng=oldDog.rng;
 assert(!oldPet.breed);assert(S.options(oldDog,'pets').some(a=>a.id==='record-pet-breed'&&!a.reason));
 noChange(oldDog,()=>S.perform(oldDog,'record-pet-breed','Bengal'));

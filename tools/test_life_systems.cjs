@@ -49,8 +49,11 @@ ageTo(school,22);assert.equal(school.sim.degree,'Science');school.stats.smarts=9
 ageTo(school,26);assert.equal(school.sim.professional,'Medicine');school.stats.smarts=92;if(W.jobReason(school,'physician')==='No vacancy this year')step(school);school.rng=3;assert(W.interview(school,'physician','example'));
 assert.equal(school.job,'physician');assert(E.state(school).npcs.some(n=>n.relation==='Boss'));assert(E.state(school).npcs.some(n=>n.relation==='Coworker'));
 const oldStaff=school.people[Object.keys(school.people).find(id=>school.people[id].role==='Boss')].id;
-assert(W.career(school,'practice'));assert(W.career(school,'practice'));assert(W.career(school,'promote'));school.rng=5;assert(S.perform(school,'raise'));
-assert(school.sim.peak.salary>154000);assert(S.perform(school,'resign'));assert(E.state(school).npcs.some(n=>n.id===oldStaff&&n.relation==='Former boss'));
+assert(W.career(school,'practice'));assert(W.career(school,'practice'));assert.equal(W.career(school,'promote'),null);
+step(school);const startingPay=E.state(school).salary;
+assert(W.career(school,'promote'));assert.equal(S.perform(school,'raise'),null);assert(E.state(school).salary>startingPay);
+step(school);school.rng=5;assert(S.perform(school,'raise'));
+assert(school.sim.peak.salary>=startingPay);assert(S.perform(school,'resign'));assert(E.state(school).npcs.some(n=>n.id===oldStaff&&n.relation==='Former boss'));
 const sixty=at(62,{job:'clerk'});assert(S.perform(sixty,'retire-now'));assert(S.budget(sixty).pension>0);assert.equal(S.budget(sixty).wages,0);
 const fired=at(35,{job:'guide'});fired.world.performance=15;assert(S.perform(fired,'work-slack'));assert.equal(fired.job,null);assert(fired.sim.lifeTags.includes('fired'));
 
@@ -128,7 +131,7 @@ const employed=at(31,{job:'barista'}),bossKey=Object.keys(employed.people).find(
 const performance=employed.world.performance;assert(W.social(employed,bossKey,'feedback'));assert(W.social(employed,workPeer,'collaborate'));assert.equal(employed.world.performance,performance+11);
 const ordinary=at(17,{job:null,cash:0});step(ordinary);assert.equal(ordinary.track,'gap');assert.equal(ordinary.job,null);assert.equal(ordinary.sim.program,null);
 const hireable=Object.keys(W.openings).filter(k=>!W.jobReason(ordinary,k));assert(hireable.includes('barista'));
-assert.equal(ordinary.cash,0);ordinary.rng=1;assert(W.interview(ordinary,'barista','example'));assert.equal(E.state(ordinary).salary,Math.round(25700*E.expansion.economy.local(ordinary).pay));
+assert.equal(ordinary.cash,0);ordinary.rng=1;assert(W.interview(ordinary,'barista','example'));assert.equal(E.state(ordinary).salary,Math.round(25700*E.expansion.economy.local(ordinary).pay/E.expansion.economy.priceIndex(ordinary.sim.expansion.seed,E.sim.geography.cities[ordinary.town].code,2016)));
 const posting=at(32),lists=[];for(let yr=0;yr<4;yr++){posting.age++;lists.push(Object.keys(W.openings).filter(k=>!W.jobReason(posting,k)).sort().join('/'));}
 assert(new Set(lists).size>=3);
 for(const [age,job] of [[21,null],[24,null],[64,'guide']]){const independent=at(age,{job});assert(E.advance(independent));assert.equal(independent.job,job);assert(!W.isPartner(independent));assert(!['retire','coffee','college-career','work-career','trade-career'].includes(independent.event.id));}

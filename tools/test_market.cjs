@@ -1,4 +1,5 @@
 'use strict';
+const {expectedLegacySnapshot}=require('./legacy_projection.cjs');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
@@ -115,7 +116,7 @@ assert.equal(shop.title(shop.ownedItem(another.id,child.world.owned[another.id])
 assert.equal(W.trade(child,another.id,'sell'),null);
 
 const previous=JSON.parse(fs.readFileSync(path.join(__dirname,'fixtures/upgrade-0.5.0-market.json'),'utf8'));
-const older=E.decodeGame(clone(previous));assert.deepEqual(E.encodeGame(older),previous);
+const older=E.decodeGame(clone(previous));assert.deepEqual(E.encodeGame(older),expectedLegacySnapshot(E,previous));
 const legacy=older.active;
 assert.equal(shop.ownedItem('rowhouse',legacy.world.owned.rowhouse).name,'Brick row house');
 assert.equal(shop.ownedItem('van',legacy.world.owned.van).name,'Camper van');

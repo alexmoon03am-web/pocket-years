@@ -58,7 +58,12 @@
     const roll=random(l),rate=(l.age<4?.25:.46)+(l.hidden.craziness-50)*.0011+Math.abs(l.hidden.karma-50)*.0006;
     const count=roll<.024+l.hidden.craziness*.0007?2:roll<rate?1:0;
     if(!l.sim.prison&&list.length<2){
-      const prior=world.nextEvent(l);if(prior&&fitsYear(l,stories[prior.id])&&(!prior.person||l.people[prior.person]&&M.isAlive(l.people[prior.person])))take(prior.id,prior.person);
+      let prior;
+      while((prior=world.nextEvent(l))){
+        if(!fitsYear(l,stories[prior.id])||(prior.person&&(!l.people[prior.person]||!M.isAlive(l.people[prior.person]))))continue;
+        take(prior.id,prior.person);
+        break;
+      }
     }
     if(l.age===1&&l.sim.timeline?.historicalRules&&l.born+l.age<2000&&stories.era_birth&&!l.seen.includes('era_birth'))take('era_birth');
     while(list.length<count){

@@ -3,6 +3,7 @@
 (function(root){
   'use strict';
   const G=typeof module!=='undefined'&&module.exports?require('./geography.js').PocketGeography:root.PocketGeography;
+  const Future=typeof module!=='undefined'&&module.exports?require('./future-epochs.js').PocketFuture:root.PocketFuture;
   const codeRegion={};
   const regionCodes={
     europe:'AD AL AT AX BA BE BG BY CH CZ DE DK EE ES FI FO FR GB GG GI GR HR HU IE IM IS IT JE LI LT LU LV MC MD ME MK MT NL NO PL PT RO RS RU SE SI SJ SK SM UA VA XK',
@@ -107,7 +108,10 @@
     [2050,'Automated fabrication','Electric transit and autonomous freight','Local supply cooperatives','trade'],
     [2120,'Water recovery and habitat refurbishment','All-weather electric freight corridors','Regional water compact','transport'],
     [2240,'Distributed power and materials recovery','Long-distance automated cargo exchanges','Intercity energy assembly','reform'],
-    [2400,'Closed-loop agriculture and ecological engineering','Shared low-energy transport networks','Watershed council','learning']
+    [2400,'Closed-loop agriculture and ecological engineering','Shared low-energy transport networks','Watershed council','learning'],
+    [2500,'Long-voyage provisioning and relay services','Orbital transfer hubs and light-sail freight','Port correspondence council','transport'],
+    [2700,'Voyage orchards and rotating settlements','Timed transfers at spin-ring terminals','Habitat water and seed board','trade'],
+    [2900,'Deep beacon construction and clock calibration','Linked planetary and deep-space relays','Long-voyage port compact','learning']
   ];
   function futureStage(town,year){
     const lag=hash(town+'/development')%33;
@@ -238,6 +242,10 @@
     ['A power exchange opens','Households can sell surplus stored power to nearby workshops.','trade']
   ];
   function generated(l,town,year){
+    if(year>=2050){
+      const step=Future.developments.find(d=>d.year===year);
+      if(step)return {...step,id:'future-'+year,scope:'*',kind:'Future fiction'};
+    }
     const future=futureStage(town,year);
     if(future&&year===future.start&&future.index>0){
       const [,industry,transit,council,effect]=future.stage;
@@ -246,7 +254,7 @@
     }
     const block=Math.floor(year/14),h=hash((l.sim.expansion?.seed||l.id)+'/'+town+'/'+block);
     if(year!==block*14+((h>>>8)%14))return null;
-    const pool=year>=2050?futureEpisodes:year>=1700?industrialEpisodes:localEpisodes;
+    const pool=year>=2050?(Future.episodes[Future.chapter(year).id]||futureEpisodes):year>=1700?industrialEpisodes:localEpisodes;
     const [title,description,effect]=pool[h%pool.length];
     return {id:'local-'+town+'-'+year,year,scope:town,title,description,effect,kind:year>=2050?'Future fiction':'Local simulation'};
   }
@@ -357,5 +365,5 @@
           typeof e.description!=='string'||!['Historical record','Local simulation','Future fiction'].includes(e.kind)))
       throw Error('Invalid historical world record.');
   }
-  root.PocketHistoryWorld={validate,place,choices,available,nearby,region,era,marketEffects,annual,quote,move,facts};
+  root.PocketHistoryWorld={validate,place,choices,available,nearby,region,era,marketEffects,activeEvents:active,annual,quote,move,facts};
 })(typeof module!=='undefined'&&module.exports?module.exports:window);

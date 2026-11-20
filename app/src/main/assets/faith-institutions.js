@@ -33,7 +33,11 @@
     const t=catalog().get(id);
     return t?{...t,id:t.id||id,custom:false}:null;
   }
-  function affiliation(l){return l.sim.faith?.id||'unaffiliated';}
+  function ownerId(l,id){
+    const movements=node?require('./faith-movements.js').PocketFaithMovements:root.PocketFaithMovements;
+    return movements.organization(l,id);
+  }
+  function affiliation(l){return ownerId(l,l.sim.faith?.id||'unaffiliated');}
   // Institution forms are keyed to the catalog's tradition family. A shared
   // adjective in two denomination names does not establish shared practices.
   const worshipForms={
@@ -95,7 +99,7 @@
   function forecast(l,site){
     const q=prices(l,site.town),level=site.level,staff=site.staff.length;
     const boom=.83+(Model.hash(site.id+'/'+site.town+'/'+year(l))%36)/100;
-    const region=World.region(site.town),movement=l.sim.faithWorld?.movements?.[site.faithId];
+    const region=World.region(site.town),movement=l.sim.faithWorld?.movements?.[ownerId(l,site.faithId)];
     const outreach=movement?Math.min(1.3,.38+(movement.regions?.[region]?.followers||0)/65):1;
     const audience=Math.max(0,count((14+site.reputation*.66)*level*boom*outreach));
     // A congregation contributes and supports local dues even in a year without a playable steward.
@@ -119,7 +123,7 @@
     return {year:year(l),opening:site.treasury,contributions,maintenance,upkeep,conservation,wageBill,paid,programmes,served,closing};
   }
   function summary(l,town=l.town,faithId=null){
-    const sites=records(l,town).filter(s=>!faithId||s.faithId===faithId);
+    const sites=records(l,town).filter(s=>!faithId||ownerId(l,s.faithId)===faithId);
     const totals={count:sites.length,active:0,treasury:0,staff:0,annualServices:0,landValue:0,propertyValue:0,localInfluence:0,education:0,health:0,relief:0};
     for(const s of sites){
       totals.treasury+=s.treasury;totals.landValue+=s.landValue;totals.propertyValue+=s.propertyValue;totals.staff+=s.staff.length;
@@ -128,7 +132,7 @@
       if(kind==='learning')totals.education+=served;if(kind==='health')totals.health+=served;if(kind==='relief')totals.relief+=served;
       totals.localInfluence+=Math.round(s.reputation*Math.min(1,served/32)*.34);
     }
-    const plots=(l.sim.faithWorld?.institutions?.lots||[]).filter(p=>(!town||p.town===town)&&(!faithId||p.faithId===faithId));
+    const plots=(l.sim.faithWorld?.institutions?.lots||[]).filter(p=>(!town||p.town===town)&&(!faithId||ownerId(l,p.faithId)===faithId));
     const unbuilt=plots.reduce((n,p)=>n+p.landValue,0);
     totals.pendingPlots=plots.length;totals.landValue+=unbuilt;totals.propertyValue+=unbuilt;
     totals.localInfluence=Math.min(100,totals.localInfluence);
@@ -175,7 +179,7 @@
          person.generosity<53||Model.hash(person.id+'/'+y+'/local-endowment')%53!==0||s.sites.some(v=>v.founderId===person.id))continue;
       const town=person.town||l.town,faithId=person.faith?.id||'unaffiliated',a=association(l,faithId);
       if(!Geo.cities[town]||!a||!a.custom&&!catalog().local(faithId,town,y)||a.custom&&!(l.sim.faithWorld.movements[faithId]?.regions?.[World.region(town)]?.followers>0))continue;
-      const possible=[principal(a),'charity','library','school'].filter(k=>!s.sites.some(st=>st.faithId===faithId&&st.town===town&&st.kind===k));
+      const possible=[principal(a),'charity','library','school'].filter(k=>!s.sites.some(st=>ownerId(l,st.faithId)===faithId&&st.town===town&&st.kind===k));
       if(!possible.length)continue;
       const kind=possible[Model.hash(person.id+y)%possible.length],q=prices(l,town),construction=count(q.build*kinds[kind].size),treasury=q.wage*2;
       const cost=q.land+construction+treasury;
@@ -228,7 +232,7 @@
       pay(amount){if(use)m.treasury-=amount;else l.cash-=amount;}};
   }
   function managed(l,site){
-    const m=l.sim.faithWorld?.movements?.[site.faithId];
+    const m=l.sim.faithWorld?.movements?.[ownerId(l,site.faithId)];
     return l.id===site.stewardId||!!m&&m.leaderId===l.id;
   }
   function options(l,area){
@@ -245,7 +249,7 @@
     const adult=l.age>=18?'':'Opens at 18';
     if(area==='institutions'){
       const owner=a?.id||'unaffiliated',name=a?.name||'Neighborhood community';
-      const lot=s.lots.find(p=>p.town===l.town&&p.faithId===owner),limit=buildKinds(a).filter(k=>!s.sites.some(site=>!site.seeded&&site.town===l.town&&site.faithId===owner&&site.kind===k));
+      const lot=s.lots.find(p=>p.town===l.town&&ownerId(l,p.faithId)===owner),limit=buildKinds(a).filter(k=>!s.sites.some(site=>!site.seeded&&site.town===l.town&&ownerId(l,site.faithId)===owner&&site.kind===k));
       if(m?.leaderId===l.id)add('funding',fund.movement?'Pay for new construction personally':'Pay for new construction from movement funds',
         'Current source: '+fund.name+' · '+money(fund.available)+'.','wallet',adult,0,()=>{
           s.fundingOwner=l.id;s.funding=fund.movement?'personal':'movement';return 'I selected '+(fund.movement?'personal funds':'the movement treasury')+' for new property purchases.';},false);
@@ -259,8 +263,8 @@
         const marketItem=market().ownedItem(assetId,owned);
         if(marketItem?.category!=='Property')continue;
         const town=marketItem.town||owned.town||owned.acquiredTown||l.town;
-        const occupied=s.lots.some(p=>p.town===town&&p.faithId===owner);
-        const possible=buildKinds(a).some(k=>!s.sites.some(site=>!site.seeded&&site.town===town&&site.faithId===owner&&site.kind===k));
+        const occupied=s.lots.some(p=>p.town===town&&ownerId(l,p.faithId)===owner);
+        const possible=buildKinds(a).some(k=>!s.sites.some(site=>!site.seeded&&site.town===town&&ownerId(l,site.faithId)===owner&&site.kind===k));
         const deedTitle=market().title(marketItem);
         const restriction=adult||((l.sim.loans[assetId]?.balance||0)>0?'Pay off the outstanding loan first':
           (owned.share??1)!==1?'Only the sole owner can donate':owned.tenant?'An active tenant occupies the property':
@@ -328,7 +332,7 @@
       adult||(l.cash<capitalGift?'Insufficient personal funds':''),capitalGift,()=>{
         l.cash-=capitalGift;site.treasury+=capitalGift;site.reputation=percent(site.reputation+3);credit(site,l,2);
         return 'I endowed the building fund with '+money(capitalGift)+'. The trustees recorded the gift.';});
-    const grant=sq.wage*2,organization=l.sim.faithWorld?.movements?.[site.faithId];
+    const grant=sq.wage*2,organization=l.sim.faithWorld?.movements?.[ownerId(l,site.faithId)];
     if(organization?.leaderId===l.id)add('grant','Award a movement grant','Transfer '+money(grant)+' from '+organization.name+' to the institution.','wallet',
       adult||(organization.treasury<grant?'Insufficient movement funds':''),grant,()=>{
         organization.treasury-=grant;site.treasury+=grant;return 'The movement transferred '+money(grant)+' to '+site.name+'.';});

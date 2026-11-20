@@ -27,6 +27,13 @@
           if(l.sim[field]!==undefined&&(!l.sim[field]||typeof l.sim[field]!=='object'||Array.isArray(l.sim[field])))throw Error('Invalid belief history.');
         }
         for(const module of [engine.faithMovements,engine.faithPersonal,engine.faithInstitutions,engine.faithLegacy,engine.faithCommunity,engine.faithEncounters])module.validate(l);
+        if(l.sim.realism!==undefined&&!['guided','historical'].includes(l.sim.realism))throw Error('Unknown historical realism setting.');
+        const {contractRole,experienceYear,payReviewYear,roleYears,legacyPayFactor}=l.world;
+        if(legacyPayFactor!==undefined&&(!Number.isFinite(legacyPayFactor)||legacyPayFactor<.5||legacyPayFactor>2||contractRole!==undefined))throw Error('Invalid inherited pay basis.');
+        if(contractRole!==undefined&&contractRole!==null&&(typeof contractRole!=='string'||!own(engine.jobs,contractRole)))throw Error('Invalid employment contract.');
+        for(const y of [experienceYear,payReviewYear])if(y!==undefined&&(!Number.isSafeInteger(y)||y<l.born||y>l.born+l.age))throw Error('Invalid career year.');
+        if(roleYears!==undefined&&(!roleYears||typeof roleYears!=='object'||Array.isArray(roleYears)||
+            Object.entries(roleYears).some(([id,n])=>!own(engine.jobs,id)||!Number.isSafeInteger(n)||n<0||n>l.age)))throw Error('Invalid work history.');
         const era=engine.historyEconomy;
         if(!Number.isInteger(l.age)||l.age<0||l.age>150||!Number.isSafeInteger(l.cash)||l.cash<0||!engine.sim.geography.cities[l.town]||l.job&&!own(engine.jobs,l.job)||!Array.isArray(l.log)||!l.people.carer||!l.people.love||!l.people.friend)throw Error('Incomplete life record.');
         if(!Array.isArray(l.used)||!Array.isArray(l.seen)||!Array.isArray(l.eventQueue)||!Array.isArray(l.sim.illnesses)||!Array.isArray(l.sim.offenses))throw Error('Incomplete simulation record.');
@@ -45,7 +52,7 @@
             own(engine.world.market,type)&&(!a.listing||engine.world.shopping.shops[a.listing.shop]&&Number.isFinite(a.listing.price));
         }
         for(const [id,a] of Object.entries(l.world.owned))if(!validHolding(id,a))throw Error('Invalid asset record.');
-        for(const debt of Object.values(l.sim.loans))if(!Number.isFinite(debt.balance)||debt.balance<0||!Number.isFinite(debt.principal)||debt.principal<0)throw Error('Invalid loan record.');
+        engine.sim.validateFinance(l);
         const x=l.sim.expansion;if(x){
           for(const field of ['companies','policies','hobbies','permits','portfolio','family'])if(!x[field]||typeof x[field]!=='object'||Array.isArray(x[field]))throw Error('Incomplete expansion record.');
           for(const field of ['certs','passports','awards'])if(!Array.isArray(x[field]))throw Error('Incomplete expansion record.');

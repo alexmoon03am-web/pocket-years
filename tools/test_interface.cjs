@@ -1,4 +1,5 @@
 'use strict';
+const {expectedLegacySnapshot}=require('./legacy_projection.cjs');
 const assert=require('node:assert/strict'),path=require('node:path'),fs=require('node:fs');
 const {start,base}=require('./interface_host.cjs'),E=require(path.join(base,'engine.js')).PocketEngine,S=E.sim,W=E.world;
 const K='studio.pocketyears.save.v1',text=u=>u.visible().textContent,clean=u=>{u.flushBack();u.tick();};
@@ -166,7 +167,7 @@ tab(travel,'assets');travel.click('sheet','sell-'+deed.id);assert(text(travel).i
 travel.click('central');settle(travel);tab(travel,'activities');travel.click('sheet','hub-travel');travel.click('sheet','destinations');
 travel.change('town','kyoto');travel.click('sheet','move-kyoto');assert(text(travel).includes('Domestic move'));
 travel.click('move','kyoto');clean(travel);assert.equal(internal(travel).town,'kyoto');
-const worldBirth=start(new Map(),{scripts});worldBirth.click('sheet','menu');assert(text(worldBirth).includes('v1.1'));
+const worldBirth=start(new Map(),{scripts});worldBirth.click('sheet','menu');assert(text(worldBirth).includes('v1.2'));
 worldBirth.click('new-form');worldBirth.el('person-name').value='Noa Rivera';
 worldBirth.input('place-search','Egypt');worldBirth.key('Enter');assert.equal(worldBirth.el('country').value,'EG');
 worldBirth.input('place-search','Narau typo');assert(text(worldBirth).includes('No matching'));worldBirth.key('Escape');assert(worldBirth.el('person-name'));
@@ -180,7 +181,7 @@ const limited=at();limited.cash=1799;const insufficient=start(mem(limited));tab(
 insufficient.click('sheet','destinations');insufficient.change('country','JP');insufficient.change('town','kyoto');insufficient.click('sheet','move-kyoto');
 assert(insufficient.button('move','kyoto').disabled);assert.equal(insufficient.state().active.bankBalance,1799);
 const oldWorld=JSON.parse(fs.readFileSync(path.join(__dirname,'fixtures/upgrade-0.6.0-residence.json'),'utf8'));
-const from060=start(new Map([[K,JSON.stringify(oldWorld)]]));assert.deepEqual(from060.state(),oldWorld);
+const from060=start(new Map([[K,JSON.stringify(oldWorld)]]));assert.deepEqual(from060.state(),expectedLegacySnapshot(E,oldWorld));
 console.log('PASS worldwide birth and immigration menus, full country selection, city search, Android-style Back, moving fee, old saves, residence history, property abroad and the standalone browser edition.');
 console.log('PASS all fourteen storefronts in Assets, Android-style Back, detail views, date-stable stock, double-tap purchase, sale, age-up, gated dealers, stale links and offline storefronts.');
 console.log('PASS five-button dock, first-person biography, age statements, age-appropriate menus, campus actions, declined scholarship retry and random restart.');

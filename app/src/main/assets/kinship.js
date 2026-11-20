@@ -174,13 +174,17 @@
       }
       else if(stage===1&&p.wealth>=houseCost&&!p.home){if(buyHome(l,p,houseCost))line='bought a share in a home in '+townLabel(l,p.town);}
       else if(stage===2&&p.role!=='Spouse'){const town=moveTown(l,p,h);if(town!==p.town){p.town=town;line='moved to '+townLabel(l,town);}}
-      else if(stage===3&&age<60&&tree[p.id]&&!tree[p.id].spouse&&living<96){
+      else if(stage===3&&age<60&&tree[p.id]&&(!tree[p.id].spouse||Number.isInteger(tree[tree[p.id].spouse]?.died))&&living<96){
         const role=p.role==='Child'?'Child-in-law':p.role==='Mother'||p.role==='Father'?'Stepparent':p.role==='Sibling'?'Sibling-in-law':'Relative';
         const partner=add(l,p.id+'/partner/'+year,role,year-Math.max(18,age+(h%7)-3));
         marry(l,p.id,partner.id);living++;line='married '+partner.name;
         if(role==='Stepparent'&&age>28){const step=add(l,partner.id+'/step','Stepsibling',Math.min(year,partner.bornYear+23));link(l,partner.id,step.id);}
       }else if(stage===4&&age<44&&['Child','Sibling','Aunt','Uncle'].includes(p.role)&&living<96){
-        const child=add(l,p.id+'/baby/'+year,birthRole(p,h),year);living++;link(l,p.id,child.id);const other=tree[p.id]?.spouse;if(other)link(l,other,child.id);line='welcomed '+child.name;
+        const child=add(l,p.id+'/baby/'+year,birthRole(p,h),year);
+        living++;link(l,p.id,child.id);
+        const spouse=tree[tree[p.id]?.spouse];
+        if(spouse&&(!Number.isInteger(spouse.died)||spouse.died>=year))link(l,spouse.id,child.id);
+        line='welcomed '+child.name;
       }else if(stage===5&&(h>>>4)%3===0&&!p.enterprise&&p.wealth>houseCost*2&&npcYear.phase!=='Recession'){
         if(foundBusiness(l,p,houseCost))line='opened '+p.enterprise.name;
       }else if(npcYear.phase==='Recession'||stage===5){const loss=Math.min(p.wealth,historical?Math.round(job.annual*(.06+(h%17)/100)):500+h%2800);p.wealth-=loss;p.moneyTrouble=year;line='fell behind on bills';}

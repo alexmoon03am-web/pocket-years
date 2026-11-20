@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const {start,base}=require('./interface_host.cjs');
 const path=require('node:path');
 const U=require(path.join(base,'era-ui.js'));
-const expected=[[1200,'medieval'],[1500,'renaissance'],[1700,'industrial'],[1900,'press'],[1950,'midcentury'],[1980,'terminal'],[2000,'web'],[2020,'modern'],[2050,'future']];
+const expected=[[1200,'medieval'],[1500,'renaissance'],[1700,'industrial'],[1900,'press'],[1950,'midcentury'],[1980,'terminal'],[2000,'web'],[2020,'modern'],[2050,'future'],[2150,'planetary'],[2500,'stellar']];
 for(const [i,[year,id]] of expected.entries()){
   assert.equal(U.themeForYear(year),id);
   if(i)assert.equal(U.themeForYear(year-1),expected[i-1][1]);
@@ -12,7 +12,7 @@ for(const era of U.eras){
   for(const year of [era.first,era.last,era.start])assert(U.validYear(era,year));
   for(const year of [era.first-1,era.last+1,'',null,era.first+.5])assert(!U.validYear(era,year));
 }
-assert.equal(U.themeForYear(3889),'future');
+assert.equal(U.themeForYear(3889),'stellar');
 assert.equal(U.activeTheme({born:1200,age:1,sim:{}},'unknown'),'modern');
 const key='studio.pocketyears.save.v1';
 const storage=new Map();
@@ -63,7 +63,7 @@ for(const [birthYear,theme] of expected){
   assert.equal(one.doc.documentElement.dataset.theme,theme);
   assert.equal(one.el('calendar-year').textContent,String(birthYear));
 }
-console.log('PASS all nine calendar styles, six start periods, exact-year and settlement selection, saved visual overrides and birthday transition.');
+console.log('PASS all eleven calendar styles, six start periods, exact-year and settlement selection, saved visual overrides and birthday transition.');
 for(const year of [1300,1850]){
   const period=E.makeLife({seed:48,birthYear:year-22});
   period.age=22;period.cash=12000;period.sim.expansion.ambition='Master a hobby';
