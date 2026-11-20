@@ -6,6 +6,7 @@
     const route=(area,ref='')=>'xp-'+area+(ref?'~'+ref:'');
     const link=(area,title,desc,icon,ref='')=>row('sheet',route(area,ref),title,desc,icon);
     const wrap=html=>'<div class="commands">'+html+'</div>';
+    const placeName=(l,town)=>E.isHistorical(l)?E.historyWorld.place(town,E.calendar(l)).label:G.label(town);
     const rate=n=>(n*100).toFixed(1)+'%';
     const label=id=>G.countries[id]?.name||id;
     const titles={family:'Family tree',branch:'Family connections',relative:'Relationship history',career:'Professional life',business:'Businesses & freelance',company:'Business accounts',world:'Local economy',hobbies:'Hobbies & ambitions',portfolio:'Investments',asset:'Manage asset',offer:'Financing & trade-ins',bills:'Bills & maintenance',visa:'Immigration office',travel:'Household moving plans',estate:'Estate planning'};
@@ -50,7 +51,7 @@
       if(area==='branch'){
         const tree=x.family,n=tree[ref];if(!n)return null;title=n.name;
         const nodes=Object.values(tree),member=Object.entries(l.people).find(([,p])=>p.id===ref);
-        body=detail(ref===l.id?'You':X.kin.relationship(tree,l.id,ref),'Born '+n.born+(n.died?' · Died '+n.died:'')+(G.cities[n.town]?' · '+G.label(n.town):''));
+        body=detail(ref===l.id?'You':X.kin.relationship(tree,l.id,ref),'Born '+n.born+(n.died?' · Died '+n.died:'')+(G.cities[n.town]?' · '+placeName(l,n.town):''));
         if(member)body+=row('sheet','person-'+member[0],'Relationship profile','Open interactions and personal history.','people');
         const groups=[['Parents',n.parents.map(id=>tree[id]).filter(Boolean)],['Spouse',n.spouse&&tree[n.spouse]?[tree[n.spouse]]:[]],
           ['Children',nodes.filter(v=>v.parents.includes(ref))],['Siblings',nodes.filter(v=>v.id!==ref&&v.parents.some(id=>n.parents.includes(id)))]];
@@ -62,13 +63,13 @@
       if(area==='relative'){
         const p=l.people[ref];if(!p)return null;title=p.fullName;
         body=(x.family[p.id]?link('branch','Family connections','Parents, siblings, children and shared family memories.','family-tree',p.id):'')+meter('Trust',p.trust??p.bond,'heart')+meter('Loyalty',p.loyalty??Math.round((p.bond+p.generosity)/2),'people')+
-          detail('Circumstances',[p.role,p.job,G.cities[p.town]?G.label(p.town):'',p.home?'Homeowner in '+G.cities[p.home].name:'',...Object.values(x.companies).filter(c=>c.managerId===p.id).map(c=>'Manages '+c.name),p.rivalry?'Unresolved rivalry':'',p.favor?'Owes '+cash(p.favor.amount):''].filter(Boolean).join(' · '))+
+          detail('Circumstances',[p.role,p.job,G.cities[p.town]?placeName(l,p.town):'',p.home?'Homeowner in '+placeName(l,p.home):'',...Object.values(x.companies).filter(c=>c.managerId===p.id).map(c=>'Manages '+c.name),p.rivalry?'Unresolved rivalry':'',p.favor?'Owes '+cash(p.favor.amount):''].filter(Boolean).join(' · '))+
           detail('Remembered interactions',(p.memories||[]).slice(-5).reverse().map(m=>'Age '+m.age+' · '+(verb[m.act]||m.act)).join(' / ')||'No shared memories recorded yet.');
       }
       if(area==='career')body=detail('Experience',l.sim.workYears+' years worked · '+l.world.reputation+'% reputation · '+(x.discipline||0)+' written warnings')+detail('Certifications',x.certs.join(', ')||'None earned.')+(l.job?detail('Professional field',X.data.sector(l.job)):'');
       if(area==='business'){
         const results=X.businessYear(l).rows;
-        body=detail('Your companies',cash(X.companyValue(l))+' in company equity.')+wrap(Object.values(x.companies).map(c=>link('company',c.name,G.label(c.town)+' · forecast payout '+cash(results.find(r=>r.id===c.id)?.payout||0),'shop',c.id)).join(''))+subhead('Start working for yourself');
+        body=detail('Your companies',cash(X.companyValue(l))+' in company equity.')+wrap(Object.values(x.companies).map(c=>c.historical?row('sheet','hist-business',c.name,placeName(l,c.town)+' · family enterprise','shop'):link('company',c.name,G.label(c.town)+' · forecast payout '+cash(results.find(r=>r.id===c.id)?.payout||0),'shop',c.id)).join(''))+subhead('Start working for yourself');
       }
       if(area==='company'){
         const c=x.companies[ref];if(!c)return null;title=c.name;const r=X.businessYear(l).rows.find(row=>row.id===ref);

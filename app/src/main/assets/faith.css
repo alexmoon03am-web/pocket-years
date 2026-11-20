@@ -1,0 +1,29 @@
+.shade[data-key^="faith-"] .sheet { border-top:3px solid var(--edition-trim,var(--green)); }
+.shade[data-key^="faith-"] .sheet .commands {margin-block:8px;}
+.faith-facts,.faith-metrics {margin:9px 0 13px;font-variant-numeric:tabular-nums;}
+.faith-facts {border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--card);}
+.faith-facts>div {display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.5fr);align-items:baseline;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line);}
+.faith-facts>div:last-child{border-bottom:none;}
+.faith-facts dt,.faith-metrics dt {color:var(--muted);font-size:12px;}
+.faith-facts dd {margin:0;text-align:end;font-size:13px;font-weight:650;overflow-wrap:anywhere;white-space:pre-line;}
+.faith-metrics {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 14px;padding:9px;border:1px solid var(--line);border-radius:9px;background:var(--card);}
+.faith-metrics dd {margin:0;display:flex;align-items:center;gap:6px;}
+.faith-metrics b {font-size:14px;min-width:24px;}
+.faith-metrics progress {display:block;appearance:none;accent-color:var(--green);width:100%;min-width:0;height:6px;border:0;border-radius:8px;overflow:hidden;background:var(--line);}
+.faith-metrics ::-webkit-progress-bar {background:var(--line);}
+.faith-metrics ::-webkit-progress-value {background:var(--green);}
+.faith-lines {margin:6px 0 12px;padding-inline-start:20px;color:var(--text);font-size:14px;line-height:1.5;}
+.faith-lines li+li {margin-top:5px;}
+.faith-editor {display:grid;gap:6px;}
+.faith-editor label {font-weight:650;font-size:13px;margin:7px 0 0;}
+.faith-editor input,.faith-editor textarea,.faith-editor select {width:100%;min-height:44px;min-width:0;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);padding:9px;font:inherit;}
+.faith-editor textarea {resize:vertical;}
+.faith-error {color:var(--text);font-weight:650;}
+.faith-error:empty {display:none;}
+.faith-editor button {margin-top:8px;}
+.faith-editor fieldset {display:grid;gap:6px;margin:0 0 8px;padding:5px 12px 14px;min-inline-size:0;border:1px solid var(--line);border-radius:9px;}
+.faith-editor legend {padding:0 5px;color:var(--green);font-weight:750;}
+.faith-archive {margin:10px 0;}
+.faith-archive>summary {padding:12px 10px;color:var(--green);border:1px solid var(--line);border-radius:8px;font-weight:700;cursor:pointer;}
+.faith-archive .detail {margin-block:6px;}
+.faith-editor textarea:focus-visible,.faith-archive>summary:focus-visible {outline:3px solid var(--gold);outline-offset:2px;}

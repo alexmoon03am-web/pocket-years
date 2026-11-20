@@ -93,7 +93,7 @@ touch.pointer('pointerdown',grip,90,0);touch.pointer('pointermove',grip,108,30);
 touch.pointer('pointerdown',grip,90,300);touch.pointer('pointerup',grip,210,440);clean(touch);
 touch.click('sheet','menu');touch.click('sheet','motion');touch.click('motion','reduced');leave(touch);const previousCount=touch.records.length;
 touch.click('central');settle(touch);assert.equal(touch.records.length,previousCount);
-const brfile=fs.readFileSync(process.env.POCKET_PREVIEW||path.join(__dirname,'../build/Pocket-Years-Play.html'),'utf8');const scripts=[...brfile.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]);assert.equal(scripts.length,22);
+const brfile=fs.readFileSync(process.env.POCKET_PREVIEW||path.join(__dirname,'../build/Pocket-Years-Play.html'),'utf8');const scripts=[...brfile.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]);assert.equal(scripts.length,Array.from(fs.readFileSync(path.join(base,'index.html'),'utf8').matchAll(/<script defer src="/g)).length);
 const browse=start(mem(pair),{scripts});icons(browse,true);browse.click('choose',1);icons(browse,true);assert(text(browse).includes('+$90'));browse.click('ack','lost-wallet');settle(browse);browse.click('tab','assets');browse.click('sheet','net');assert(text(browse).includes('Net worth'));
 const teenLife=at(13,null),teen=start(mem(teenLife),{asyncBack:true});
 assert.equal(teen.doc.querySelector('.dock').querySelectorAll('button').length,5);assert.equal(teen.doc.querySelector('.vitals').querySelectorAll('.vital').length,4);
@@ -166,7 +166,7 @@ tab(travel,'assets');travel.click('sheet','sell-'+deed.id);assert(text(travel).i
 travel.click('central');settle(travel);tab(travel,'activities');travel.click('sheet','hub-travel');travel.click('sheet','destinations');
 travel.change('town','kyoto');travel.click('sheet','move-kyoto');assert(text(travel).includes('Domestic move'));
 travel.click('move','kyoto');clean(travel);assert.equal(internal(travel).town,'kyoto');
-const worldBirth=start(new Map(),{scripts});worldBirth.click('sheet','menu');assert(text(worldBirth).includes('v0.8.1'));
+const worldBirth=start(new Map(),{scripts});worldBirth.click('sheet','menu');assert(text(worldBirth).includes('v1.1'));
 worldBirth.click('new-form');worldBirth.el('person-name').value='Noa Rivera';
 worldBirth.input('place-search','Egypt');worldBirth.key('Enter');assert.equal(worldBirth.el('country').value,'EG');
 worldBirth.input('place-search','Narau typo');assert(text(worldBirth).includes('No matching'));worldBirth.key('Escape');assert(worldBirth.el('person-name'));

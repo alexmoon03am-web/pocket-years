@@ -3,6 +3,7 @@
   'use strict';
   const PocketEconomy=typeof module!=='undefined'&&module.exports?require('./economy.js').PocketEconomy:root.PocketEconomy;
   const PocketExpansion=typeof module!=='undefined'&&module.exports?require('./expansion.js').PocketExpansion:root.PocketExpansion;
+  const H=typeof module!=='undefined'&&module.exports?require('./history-economy.js').PocketHistoryEconomy:root.PocketHistoryEconomy;
   function tax(gross){
     const brackets=[[13000,0],[36000,.12],[85000,.20],[155000,.28],[Infinity,.34]];
     let total=0,lower=0;
@@ -13,20 +14,22 @@
     function budget(l,earnedAge=l.age){
       const s=l.sim,w=l.world,adult=earnedAge>=18,shift=world.parts[w.partJob],working=adult&&!s.prison&&l.job;
       const x=s.expansion,e=x?PocketEconomy.local(l,l.town,earnedAge):null;
+      const periodBudget=H.historical(l,earnedAge)||(H.enabled(l)&&H.year(l,earnedAge)>=2050);
+      const period=periodBudget?H.profile(l,earnedAge):null;
       const pay=working?PocketEconomy.salary(l,l.job,jobs,earnedAge):0,pension=l.job==='retired'?pay:0;
-      const wages=adult?pay-pension:shift?shift[1]:0,side=adult&&!s.prison?(s.sideHustle||0)+(s.expansion?.royalties||0):0;
+      const wages=adult?pay-pension:period&&H.historical(l,earnedAge)?H.youthPay(l,earnedAge):shift?shift[1]:0,side=adult&&!s.prison?(s.sideHustle||0)+(s.expansion?.royalties||0):0;
       const rent=adult?world.rent(l,earnedAge):0,yieldIncome=adult?Math.floor((s.fund||0)*(e?e.yield:.035)):0;
       const company=x&&adult?PocketExpansion.businessYear(l,earnedAge):{income:0,loss:0,rows:[]};
       const recurring=PocketExpansion.expenses(l,earnedAge);
-      const gross=wages+pension+side+rent+yieldIncome+company.income,taxes=adult?Math.floor(tax(gross)*(e?e.tax:1)):0;
+      const gross=wages+pension+side+rent+yieldIncome+company.income,taxes=adult?Math.floor(period?gross*period.tax+Math.max(0,gross-period.food*9)*.055:tax(gross)*(e?e.tax:1)):0;
       const hasLocalHome=Object.entries(w.owned).some(([id,a])=>{
         const item=world.shopping.ownedItem(id,a);
         return item.category==='Property'&&!item.commercial&&!a.tenant&&(!item.town||item.town===l.town);
       });
       const familyRate=earnedAge<23||l.job==='student';
-      const housing=!adult||s.prison||hasLocalHome?0:Math.round((familyRate?1200:5400)*(e?e.cost:1));
-      const living=!adult||s.prison?0:Math.round((familyRate?1050:Math.min(15000,2400+Math.floor(gross*.13)))*(e?e.cost:1));
-      const dependents=adult?Object.values(l.people).filter(p=>p.role==='Child'&&!Number.isInteger(p.diedAt)&&ageOf(l,p)<18).length*320:0;
+      const housing=!adult||s.prison||hasLocalHome?0:Math.round(period?period.housing*period.cost*(familyRate?.45:1):(familyRate?1200:5400)*(e?e.cost:1));
+      const living=!adult||s.prison?0:Math.round(period?period.food*period.cost*(familyRate?.60:1):(familyRate?1050:Math.min(15000,2400+Math.floor(gross*.13)))*(e?e.cost:1));
+      const dependents=adult?Object.values(l.people).filter(p=>p.role==='Child'&&!Number.isInteger(p.diedAt)&&ageOf(l,p)<18).length*(period?Math.round(period.food*.09*period.cost):320):0;
       const upkeep=adult?Object.entries(w.owned).reduce((n,[id,a])=>{
         const item=world.shopping.ownedItem(id,a),rate=item.category==='Property'?.011:item.category==='Vehicle'?.045:.004;
         return n+Math.ceil(item.price*(a.share||1)*rate*(1+(100-(a.condition||80))/125));

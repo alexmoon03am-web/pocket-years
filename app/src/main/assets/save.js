@@ -16,10 +16,18 @@
     try{const n=Number(storage.getItem(key+'.selected'));if([1,2,3].includes(n))selected=n;}catch{failed=true;}
     const slot=n=>n===1?key:key+'.slot.'+n;
     const get=k=>{try{return storage.getItem(k);}catch{return null;}};
-    const blank=()=>({version:4,active:engine.makeLife(),archive:[],settings:{motion:'system'}});
+    const blank=()=>({version:4,active:engine.makeLife({birthYear:2026}),archive:[],settings:{motion:'system'}});
     function decode(raw){
       const game=engine.decodeGame(parse(raw));
+      const dynasty=typeof module!=='undefined'&&module.exports?require('./history-dynasty.js').PocketHistoryDynasty:root.PocketHistoryDynasty;
       for(const l of [game.active,...game.archive]){
+        if(dynasty?.isArchive(l)){if(l===game.active)throw Error('A closed archive cannot be an active life.');dynasty.validateArchive(l);continue;}
+        dynasty?.validate(l);engine.historyWorld?.validate(l);
+        for(const field of ['faithWorld','faith','faithLegacy','faithCongregations']){
+          if(l.sim[field]!==undefined&&(!l.sim[field]||typeof l.sim[field]!=='object'||Array.isArray(l.sim[field])))throw Error('Invalid belief history.');
+        }
+        for(const module of [engine.faithMovements,engine.faithPersonal,engine.faithInstitutions,engine.faithLegacy,engine.faithCommunity,engine.faithEncounters])module.validate(l);
+        const era=engine.historyEconomy;
         if(!Number.isInteger(l.age)||l.age<0||l.age>150||!Number.isSafeInteger(l.cash)||l.cash<0||!engine.sim.geography.cities[l.town]||l.job&&!own(engine.jobs,l.job)||!Array.isArray(l.log)||!l.people.carer||!l.people.love||!l.people.friend)throw Error('Incomplete life record.');
         if(!Array.isArray(l.used)||!Array.isArray(l.seen)||!Array.isArray(l.eventQueue)||!Array.isArray(l.sim.illnesses)||!Array.isArray(l.sim.offenses))throw Error('Incomplete simulation record.');
         const pet=l.sim.pet;
@@ -30,15 +38,18 @@
         }
         const pending=[l.event,...l.eventQueue,...(l.world.events||[])].filter(Boolean);
         if(pending.some(e=>e.id&&!own(engine.stories,e.id)))throw Error('Unrecognized life event.');
-        for(const [id,a] of Object.entries(l.world.owned)){
+        function validHolding(id,a){
+          if(!a||!Number.isFinite(a.value)||a.value<0)return false;
           const type=a.listing?a.listing.type:id;
-          if(!own(engine.world.market,type)||!Number.isFinite(a.value)||a.value<0||a.listing&&(!engine.world.shopping.shops[a.listing.shop]||!Number.isFinite(a.listing.price)))throw Error('Invalid asset record.');
+          return a.listing?.historical?!!(era?.validListing(id,a.listing)&&engine.sim.geography.cities[a.listing.town]):
+            own(engine.world.market,type)&&(!a.listing||engine.world.shopping.shops[a.listing.shop]&&Number.isFinite(a.listing.price));
         }
+        for(const [id,a] of Object.entries(l.world.owned))if(!validHolding(id,a))throw Error('Invalid asset record.');
         for(const debt of Object.values(l.sim.loans))if(!Number.isFinite(debt.balance)||debt.balance<0||!Number.isFinite(debt.principal)||debt.principal<0)throw Error('Invalid loan record.');
         const x=l.sim.expansion;if(x){
           for(const field of ['companies','policies','hobbies','permits','portfolio','family'])if(!x[field]||typeof x[field]!=='object'||Array.isArray(x[field]))throw Error('Incomplete expansion record.');
           for(const field of ['certs','passports','awards'])if(!Array.isArray(x[field]))throw Error('Incomplete expansion record.');
-          for(const [id,c] of Object.entries(x.companies))if(c.id!==id||!own(engine.expansion.data.businesses,c.type)||!engine.sim.geography.cities[c.town]||!Number.isFinite(c.capital)||c.capital<0)throw Error('Invalid business record.');
+          for(const [id,c] of Object.entries(x.companies))if(c.id!==id||(!own(engine.expansion.data.businesses,c.type)&&!(era?.businesses&&own(era.businesses,c.type)))||!engine.sim.geography.cities[c.town]||!Number.isFinite(c.capital)||c.capital<0)throw Error('Invalid business record.');
           for(const [id,q] of Object.entries(x.portfolio))if(!own(engine.expansion.funds,id)||!Number.isSafeInteger(q)||q<0)throw Error('Invalid investment.');
           for(const [id,n] of Object.entries(x.family))if(!n||n.id!==id||typeof n.name!=='string'||!Number.isInteger(n.born)||!Array.isArray(n.parents)||n.parents.some(p=>!own(x.family,p))||n.spouse&&!own(x.family,n.spouse))throw Error('Invalid family tree.');
           if(x.worldHistory&&(!Array.isArray(x.worldHistory)||x.worldHistory.some(r=>!r||!engine.sim.geography.cities[r.town]||!Number.isInteger(r.year)||!Number.isFinite(r.unemployment))))throw Error('Invalid market report.');
@@ -46,7 +57,14 @@
           if(x.dispute&&(!Number.isSafeInteger(x.dispute.amount)||x.dispute.amount<0))throw Error('Invalid estate claim.');
           if(typeof x.policies.autopay!=='boolean'||!['Simple','Comfortable','Luxury'].includes(x.policies.lifestyle))throw Error('Invalid payment policies.');
           for(const c of Object.values(x.companies))if(!Number.isInteger(c.level)||c.level<1||c.level>6||!Number.isInteger(c.clients)||c.clients<0||c.clients>8||!Number.isFinite(c.share)||c.share<=0||c.share>1)throw Error('Invalid business accounts.');
-          for(const p of Object.values(l.people))if(p.town&&!engine.sim.geography.cities[p.town]||p.home&&!engine.sim.geography.cities[p.home])throw Error('Invalid family address.');
+          for(const p of Object.values(l.people)){
+            if(p.town&&!engine.sim.geography.cities[p.town]||p.home&&!engine.sim.geography.cities[p.home])throw Error('Invalid family address.');
+            if(p.homeDeed&&(!validHolding(p.homeDeed.id,p.homeDeed)||!Number.isFinite(p.homeDeed.share)||p.homeDeed.share<=0||p.homeDeed.share>1))throw Error('Invalid household deed.');
+            const f=p.enterprise;
+            if(f&&(!Number.isInteger(f.founded)||typeof f.name!=='string'||!engine.sim.geography.cities[f.town]||
+              !Number.isFinite(f.capital)||f.capital<0||!Number.isFinite(f.initial)||f.initial<=0||
+              !(own(engine.expansion.data.businesses,f.type)||era?.businesses&&own(era.businesses,f.type))))throw Error('Invalid household business.');
+          }
         }
         engine.state(l);
       }

@@ -7,6 +7,17 @@
   const PocketEconomy=typeof module!=='undefined'&&module.exports?require('./economy.js').PocketEconomy:root.PocketEconomy;
   const M=typeof module!=='undefined'&&module.exports?require('./model.js').PocketModel:root.PocketModel;
   const shopping=typeof module!=='undefined'&&module.exports?require('./market.js').PocketMarket:root.PocketMarket;
+  const era=typeof module!=='undefined'&&module.exports?require('./history-economy.js').PocketHistoryEconomy:root.PocketHistoryEconomy;
+  const early=life=>era.historical(life);
+  function householdPrice(l,modern,portion){
+    if(!early(l))return modern;
+    const p=era.profile(l);
+    return Math.max(1,Math.round(p.food*p.cost*portion));
+  }
+  const familyCost=l=>householdPrice(l,400,.08);
+  const giftCost=l=>householdPrice(l,25,.005);
+  const moneyGift=l=>householdPrice(l,50,.012);
+  const weddingCost=l=>householdPrice(l,120,.035);
   const market=shopping.catalog;
   const openings={
     barista:['Corner Café','any',0],cashier:['Bay Market','any',0],custodian:['City Services','any',0],
@@ -84,6 +95,17 @@
       if(life.job)w.performance=clamp(w.performance+Math.round((60-w.performance)*.06));
       for(const [id,asset] of Object.entries(w.owned)){
         const item=shopping.ownedItem(id,asset),share=asset.share||1;
+        if(item.historical){
+          const y=life.born+life.age;
+          if(item.type==='era-horse'&&y-item.built>22+M.hash(id)%10){
+            delete w.owned[id];log(life,'Assets','Horse died','My riding horse died. I kept the saddle.');continue;
+          }
+          const wear=item.category==='Property'?1:2;
+          asset.condition=Math.max(10,asset.condition-wear);
+          const local=era.profile(life,life.age,item.town),agePremium=item.category==='Property'?Math.min(1.6,1+(y-item.built)*.001):1;
+          const target=item.price*share*agePremium*local.home*(.30+.007*asset.condition);
+          asset.value=Math.max(1,Math.round(asset.value*.88+target*.12));continue;
+        }
         if(Number.isFinite(asset.odometer)&&life.sim.license&&!life.sim.prison)asset.odometer+=3000+M.hash(id+'/'+life.age+'/miles')%8501;
         asset.condition=Math.max(12,(asset.condition||90)-(item.category==='Vehicle'?5:2));
         asset.value=Math.max(Math.round(item.price*.18*share),Math.round(asset.value*(1+item.change+(life.sim.expansion&&item.category==='Property'?PocketEconomy.local(life,item.town||life.town).appreciation:0)-(asset.condition<50?.022:0))));
@@ -156,6 +178,7 @@
       log(life,kind,title,text,delta);return {title,text,delta};
     }
     function careerOptions(life){
+      if(early(life))return [];
       const age=life.age,w=life.world,job=life.job,rows=[];
       function option(id,title,desc,icon,blocked){
         rows.push({id,title,desc,icon,reason:blocked||actionReason(life,'career-'+id)});
@@ -202,6 +225,7 @@
       return go('Skills workshop','I leave with a new skill and a page of useful contacts.',{smarts:6,bonds:2},{performance:6});
     }
     function jobReason(life,id){
+      if(early(life))return "This opening is unavailable this year";
       const row=openings[id];if(!row)return 'Unavailable';
       if(life.ended)return 'Life complete';
       if(life.job===id)return 'Current job';
@@ -279,7 +303,7 @@
       if(life.ended)return 'Life complete';
       if(life.age<21)return 'Opens at 21';
       if(life.world.childCount+(life.sim.expecting?1:0)>=5)return 'Family is full';
-      return actionReason(life,'adopt',400);
+      return actionReason(life,'adopt',familyCost(life));
     }
     function adopt(life,input){
       if(familyReason(life))return null;
@@ -289,15 +313,15 @@
         const child=life.people[key];child.town=life.town;if(isPartner(life))child.otherParentId=life.people.love.id;
         M.person(life,key,child);PocketKinship.sync(life);
       }
-      schedule(life,'first-curtain',5,key);
-      return commit(life,'adopt','Family','Welcomed '+name,'I bring '+name+' home. A very small sock is missing before bedtime.',{cash:-400,bonds:8,joy:6},{});
+      if(!early(life))schedule(life,'first-curtain',5,key);
+      return commit(life,'adopt','Family','Welcomed '+name,'I bring '+name+' home. A very small sock is missing before bedtime.',{cash:-familyCost(life),bonds:8,joy:6},{});
     }
     function dateReason(life){
       if(life.ended)return 'Life complete';
       if(life.age<14)return 'Opens at 14';
       if(isPartner(life))return 'In a relationship';
       if(life.event && life.event.id==='coffee' && !life.event.resolved)return 'Answer this year’s invitation first';
-      return actionReason(life,'date',life.age<18?0:35);
+      return actionReason(life,'date',life.age<18||early(life)?0:35);
     }
     function meet(life){
       if(dateReason(life))return null;
@@ -306,9 +330,10 @@
       const taken=Object.values(life.people).map(p=>p.name);
       const available=dates.filter(n=>!taken.includes(n));const name=rngItem(life,available.length?available:dates);
       life.people.love={name,role:'Partner',bond:54,active:true,met:true,since:life.age,bornYear:life.born};
-      return commit(life,'date','People','A first date with '+name,life.age<18?'I walked home together. A second date made the schedule.':'Coffee cost $35. A second date was agreed.',{cash:life.age<18?0:-35,joy:5,bonds:4},{});
+      return commit(life,'date','People','A first date with '+name,early(life)?'We took the long way home. We agreed to do it again.':life.age<18?'I walked home together. A second date made the schedule.':'Coffee cost $35. A second date was agreed.',{cash:life.age<18||early(life)?0:-35,joy:5,bonds:4},{});
     }
     function matches(l){
+      if(l.sim.timeline?.historicalRules&&l.born+l.age<2009)return [];
       return [0,1,2].map(i=>{
         const h=M.hash(l.id+'/'+l.age+'/dating/'+i),name=dates[(h%dates.length+i)%dates.length];
         const last=['King','Bell','Wood','Lane','Chen','Reed','Shah'][(h>>>10)%7],age=Math.max(18,l.age+(h%11)-5);
@@ -318,6 +343,7 @@
       });
     }
     function matchReason(l,index){
+      if(l.sim.timeline?.historicalRules&&l.born+l.age<2009)return 'Dating apps are unavailable this year';
       if(!Number.isInteger(index)||index<0||index>2)return 'Unknown profile';
       if(l.age<18)return 'Opens at 18';if(isPartner(l))return 'In a relationship';
       return actionReason(l,'app-match-'+index,15);
@@ -391,7 +417,7 @@
       if(life.age>=4)add('compliment','Give a compliment','Tell them something you appreciate.','heart');
       if(life.age>=10)add('argue','Pick an argument','Say the thing that has been bothering you.','chat');
       if(life.age>=4)add('talk','Have a conversation','Ask about their week.','chat');
-      if(life.age>=8){add('gift','Give a gift','Buy them a $25 gift.','gift','',25);add('money','Give money','Give them $50 in cash.','wallet','',50);}
+      if(life.age>=8){add('gift','Give a gift','Choose a gift worth '+era.money(life,giftCost(life))+'.','gift','',giftCost(life));add('money','Give money','Give them '+era.money(life,moneyGift(life))+'.','wallet','',moneyGift(life));}
       if(life.age>=8)add('insult','Insult','Say something they will remember.','bolt');
       const age=M.ageOf(life,person),eligible=life.age>=14&&((life.age>=18&&age>=18)||(life.age<18&&age>=14&&age<18&&Math.abs(age-life.age)<=2));
       if(eligible&&!M.isFamily(person)&&!isPartner(life)&&!['Former spouse','Former partner','Boss','Former boss','Teacher','Former teacher'].includes(person.role))
@@ -400,7 +426,7 @@
         add('cutoff','Cut off contact','End contact with this person.','exit');
       if(key==='love'&&isPartner(life)){
         if(life.age>=18&&person.role==='Partner')add('propose','Propose','Ask if they want to build a life together.','rings',person.bond<70?'Needs 70% closeness':life.age<=person.since?'Give it a year':'');
-        if(person.role==='Engaged partner')add('marry','Get married','A town hall ceremony costs $120.','rings',life.age<=person.engagedAt?'Plan for next year':'',120);
+        if(person.role==='Engaged partner')add('marry','Get married','A ceremony costs '+era.money(life,weddingCost(life))+'.','rings',life.age<=person.engagedAt?'Plan for next year':'',weddingCost(life));
         add('separate',person.role==='Spouse'?'File for divorce':'End the relationship',person.role==='Spouse'?'Divide your current bank balance equally.':'Close this chapter together.','broken-heart');
       }
       return items;
@@ -423,10 +449,10 @@
       }else if(id==='collaborate'){
         title='Worked together';text=p.name+' and I finished the job before anyone could schedule another meeting.';bond=6;progress={performance:4};delta={joy:2};
       }else if(id==='talk'){title='A conversation with '+p.name;text='I compared weeks. Theirs also contained a meeting.';bond=p.traits.includes('blunt')?6:8;delta={joy:2,bonds:3};}
-      else if(id==='gift'||id==='money'){const amt=id==='gift'?25:50;p.wealth+=id==='money'?amt:0;title=id==='gift'?'A gift for '+p.name:'Gave money to '+p.name;
-        text=id==='gift'?'I spent $25. They kept the gift receipt.':'I transferred $50. They saw the notification.';bond=5+Math.floor(p.generosity/20);delta={cash:-amt,karma:3};}
+      else if(id==='gift'||id==='money'){const amt=id==='gift'?giftCost(life):moneyGift(life);p.wealth+=id==='money'?amt:0;title=id==='gift'?'A gift for '+p.name:'Gave money to '+p.name;
+        text=early(life)?(id==='gift'?'I carried the gift there in person.':'I counted the money twice.') :id==='gift'?'I spent $25. They kept the gift receipt.':'I transferred $50. They saw the notification.';bond=5+Math.floor(p.generosity/20);delta={cash:-amt,karma:3};}
       else if(id==='insult'){title='Insulted '+p.name;text='They heard me the first time.';bond=-12-Math.floor(p.craziness/20);delta={karma:-4,notoriety:2};}
-      else if(id==='cutoff'){p.cutOff=true;p.active=false;title='Cut off '+p.name;text='I stopped returning their calls.';bond=-25;delta={joy:-2,willpower:3};}
+      else if(id==='cutoff'){p.cutOff=true;p.active=false;title='Cut off '+p.name;text=early(life)?'I stopped visiting.':'I stopped returning their calls.';bond=-25;delta={joy:-2,willpower:3};}
       else if(id==='askout'){
         const yes=random(life)<.15+p.bond*.007+life.stats.looks*.001;
         if(yes){
@@ -445,11 +471,11 @@
       }else if(id==='propose'){
         title='Engaged to '+p.name;text='They said yes. I got off the floor.';p.role='Engaged partner';p.engagedAt=life.age;bond=9;delta={joy:8,bonds:6};keepsake(life,'Engagement note');
       }else if(id==='marry'){
-        title='Married '+p.name;text='The registrar lent me a pen. That made it official.';p.role='Spouse';bond=9;delta={cash:-120,joy:8,bonds:7};keepsake(life,'Town hall photograph');
+        title='Married '+p.name;text=early(life)?'Our families witnessed the ceremony. Everyone had an opinion about dinner.':'The registrar lent me a pen. That made it official.';p.role='Spouse';bond=9;delta={cash:-weddingCost(life),joy:8,bonds:7};keepsake(life,early(life)?'Wedding keepsake':'Town hall photograph');
       }else{
         const married=p.role==='Spouse',share=separationAmount(life);
         title=(married?'Divorced ':'Separated from ')+p.name;
-        text=married?'I finalized the divorce. My former spouse received $'+share.toLocaleString('en-US')+' from my bank balance.':'I broke up. The shared playlist is now awkward.';
+        text=early(life)?(married?'We divided the household. My former spouse received '+era.money(life,share)+'.':'We parted company. The walk home was quiet.'):married?'I finalized the divorce. My former spouse received $'+share.toLocaleString('en-US')+' from my bank balance.':'I broke up. The shared playlist is now awkward.';
         if(married)p.wealth+=share;p.role=married?'Former spouse':'Former partner';p.active=false;bond=-20;delta={cash:-share,joy:-5,bonds:-4};
       }
       const closeness=changeBond(life,p,id,bond);
@@ -457,7 +483,7 @@
       const result=commit(life,used,'People',title,text,delta,progress);
       result.closeness=closeness;return result;
     }
-    return {initialize,market,shopping,openings,parts,partEmployers,setShift,transferEmployer,schedule,nextEvent,metrics,changeJob,birthday,rent,assetRent,extras,netWorth,
+    return {initialize,familyCost,market,shopping,openings,parts,partEmployers,setShift,transferEmployer,schedule,nextEvent,metrics,changeJob,birthday,rent,assetRent,extras,netWorth,
       possessions,separationAmount,repair,repairReason,repairQuote,possessionReason,trade,careerOptions,career,jobReason,hire,interview,interviewPrompt,matches,matchReason,match,specialActivities,special,isPartner,familyReason,adopt,dateReason,meet,visitPlan,visitAll,socialOptions,social};
   }
   root.PocketWorld={createWorld};

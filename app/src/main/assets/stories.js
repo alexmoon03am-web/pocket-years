@@ -673,7 +673,8 @@
      ]}
   ];
   const more=typeof module!=='undefined'&&module.exports?require('./expansion-stories.js').PocketExpansionStories:root.PocketExpansionStories;
-  list.push(...more.list);
+  const historical=typeof module!=='undefined'&&module.exports?require('./history-stories.js').PocketHistoryStories:root.PocketHistoryStories;
+  list.push(...more.list,...historical.list);
   const stories={};for(const event of list)stories[event.id]=event;
   root.PocketStories={stories,list};
 })(typeof module!=='undefined'&&module.exports?module.exports:window);

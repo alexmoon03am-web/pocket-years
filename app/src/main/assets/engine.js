@@ -5,6 +5,54 @@
   const PocketExpansionData=typeof module!=='undefined'&&module.exports?require('./expansion-data.js').PocketExpansionData:root.PocketExpansionData;
   const catalog = typeof module !== 'undefined' && module.exports ? require('./stories.js').PocketStories : root.PocketStories;
   const {stories}=catalog;
+  const node=typeof module!=='undefined'&&module.exports;
+  const historyWorld=node?require('./history-world.js').PocketHistoryWorld:root.PocketHistoryWorld;
+  const historyEconomy=node?require('./history-economy.js').PocketHistoryEconomy:root.PocketHistoryEconomy;
+  const historyDynasty=node?require('./history-dynasty.js').PocketHistoryDynasty:root.PocketHistoryDynasty;
+  const faithCatalog=node?require('./faith-catalog.js').PocketFaithCatalog:root.PocketFaithCatalog;
+  const faithPersonal=node?require('./faith-personal.js').PocketFaithPersonal:root.PocketFaithPersonal;
+  const faithMovements=node?require('./faith-movements.js').PocketFaithMovements:root.PocketFaithMovements;
+  const faithInstitutions=node?require('./faith-institutions.js').PocketFaithInstitutions:root.PocketFaithInstitutions;
+  const faithLegacy=node?require('./faith-legacy.js').PocketFaithLegacy:root.PocketFaithLegacy;
+  const faithEncounters=node?require('./faith-encounters.js').PocketFaithEncounters:root.PocketFaithEncounters;
+  const faithCommunity=node?require('./faith-community.js').PocketFaithCommunity:root.PocketFaithCommunity;
+  function faithPerform(l,command){
+    if(l.ended||blocking(l)||!command)return null;
+    const {group,id,payload}=command,ctx=context();
+    if(group==='encounter')return faithEncounters.perform(l,id,ctx);
+    if(group==='found')return faithMovements.found(l,payload,ctx);
+    if(['movement','outreach','governance','reform'].includes(group))return faithMovements.perform(l,group,id,ctx,payload);
+    if(group==='institutions'||group?.startsWith('institution:'))return faithInstitutions.perform(l,group,id,ctx);
+    if(group==='legacy')return faithLegacy.perform(l,payload?.movementId,id,ctx);
+    const outcome=faithPersonal.perform(l,group,id,ctx,payload);
+    if(outcome)faithMovements.syncAffiliations(l);
+    return outcome;
+  }
+  function annualFaith(l){
+    const ctx=context();
+    if(!l.ended)faithPersonal.annual(l,ctx);
+    faithInstitutions.annual(l,ctx);
+    faithMovements.annual(l,ctx);
+    faithCommunity.annual(l);
+    faithLegacy.annual(l,ctx);
+  }
+  const calendar=l=>l.born+l.age;
+  const isHistorical=l=>!!l.sim?.timeline?.historicalRules&&calendar(l)<2000;
+  const birthYear=opts=>opts.birthYear??opts.born;
+  const validStart=y=>Number.isInteger(y)&&y>=1200&&y<=3000;
+  function context(){return {jobs,world,sim,log,apply,blocking,random,actionReason,keepsake};}
+  function historyPerform(l,area,id){
+    if(l.ended||blocking(l))return null;
+    return area==='museum'?historyDynasty.perform(l,id,context()):historyEconomy.perform(l,area,id,context());
+  }
+  function birthplace(l){
+    return isHistorical(l)?historyWorld.place(l.town,l.born).city:towns[l.town];
+  }
+  function birthEntry(l){
+    if(!isHistorical(l))return daily.birth(l,sim.geography);
+    const place=historyWorld.place(l.town,l.born);
+    return 'I was born in '+place.label+' in '+l.born+'. My name is '+l.name+'.';
+  }
   const model=typeof module!=='undefined'&&module.exports?require('./model.js').PocketModel:root.PocketModel;
   const events=typeof module!=='undefined'&&module.exports?require('./events.js').PocketEvents:root.PocketEvents;
   const daily=typeof module!=='undefined'&&module.exports?require('./daily.js').PocketDaily:root.PocketDaily;
@@ -36,6 +84,7 @@
     athlete:['Professional athlete',78000],chef:['Head chef',56500],accountant:['Accountant',64200]
   };
   for(const [id,p] of Object.entries(PocketExpansionData.professions))jobs[id]=[p[0],p[1]];
+  Object.assign(jobs,historyEconomy.jobs,faithPersonal.jobs);
   const given = ['Robin','Ellis','Jules','Avery','Reese','Kit','Nico','Emery','Quinn','Sage','Rowan','Morgan'];
   const family = ['Lane','Reed','Finch','Brooks','Bell','Vale','Park','Ellery','Shaw','Moss'];
   const carerNames = ['June','Mina','Jo','Kit','Ellis','Fran','Remy','Robin'];
@@ -43,7 +92,7 @@
   const loveNames = ['Charlie','Alex','Marlowe','Blair','Billie','Noa','Ash','Drew'];
   const clamp = v => Math.min(100,Math.max(0,v));
   const world=worldFactory.createWorld({jobs,apply,log,clamp,random,rngItem,actionReason,keepsake,cleanName,blocking,staff:l=>year.workplace(l)});
-  const sim=systemsFactory.create({world,jobs,apply,log,clamp,random,rngItem,actionReason,cleanName,blocking,campus:l=>year.campus(l),moved:(l,from,to)=>expansion.moved(l,from,to),dependence:(l,k,n)=>year.addiction(l,k,n)});
+  const sim=systemsFactory.create({world,jobs,apply,log,clamp,random,rngItem,actionReason,cleanName,blocking,campus:l=>year.campus(l),moved:(l,from,to)=>expansion.moved(l,from,to),arrived:faithInstitutions.initialize,dependence:(l,k,n)=>year.addiction(l,k,n)});
   const year=yearFactory.create({random,rngItem,apply,log,world,sim,jobs});
   const expansion=PocketExpansion.create({world,sim,jobs,log,apply,actionReason,blocking});
   function random(life) {
@@ -60,7 +109,7 @@
   function nickname(name) { return name.trim().split(/\s+/)[0]; }
   function stage(age) { return age<5?0:age<13?1:age<18?2:age<40?3:age<65?4:5; }
   function chapter(age) { return ['First days','Childhood','Teen years','Young adulthood','Middle years','Later years'][stage(age)]; }
-  function occupation(l){if(l.ended)return 'Deceased';if(l.sim.prison)return 'In custody';return l.job?jobs[l.job][0]:model.school(l).name||(l.age===0?'Newborn':l.age<5?'Early childhood':l.age<18?'Left school':'Between jobs');}
+  function occupation(l){if(l.ended)return 'Deceased';if(l.sim.prison)return 'In custody';return l.age<18&&l.sim.timeline?.youthShift?historyEconomy.shiftName(l):l.job?jobs[l.job][0]:model.school(l).name||(l.age===0?'Newborn':l.age<5?'Early childhood':l.age<18?'Left school':'Between jobs');}
   function portrait(life) { return life.age<4?0:life.age<18?1:life.age<65?2:3; }
   function copy(l,line){
     const actor=l.event&&l.people[l.event.person],words={contact:actor?actor.name:'the other person',child:actor?actor.name:'Your child',home:towns[l.town],name:l.name,carer:l.people.carer.name,friend:l.people.friend.name,love:l.people.love.name};
@@ -69,11 +118,20 @@
   function cleanName(name) { return Array.from(String(name||'').replace(/[\u0000-\u001f\u007f]/g,' ').trim().replace(/\s+/g,' ')).slice(0,32).join(''); }
   function generatedName(life) { return rngItem(life,given)+' '+rngItem(life,family); }
   function makeLife(opts={}) {
+    const selected=birthYear(opts);
+    if(selected!==undefined&&!validStart(selected))throw RangeError('Choose a birth year from 1200 through 3000.');
     const life = {version:4,rng:Number.isFinite(opts.seed)?(opts.seed>>>0)||1:seed(),age:0,name:'',town:'cedar',skin:0,born:2000,stats:{},cash:0,job:null,extraPay:0,track:null,flags:{},people:{},seen:[],quietSeen:{},keepsakes:[],log:[],used:[],outcome:null,event:null,ended:false,turns:0};
     life.name=cleanName(opts.name)||generatedName(life);
     life.town=towns[opts.town]?opts.town:sim.geography.randomCity(random(life));
     life.skin=Number.isInteger(opts.skin) && opts.skin>=0 && opts.skin<4?opts.skin:Math.floor(random(life)*4);
     life.born=1996+Math.floor(random(life)*10);
+    if(selected!==undefined){
+      life.born=selected;
+      if(selected<2000&&!historyWorld.available(opts.town,selected)){
+        const places=historyWorld.choices(selected);
+        life.town=rngItem(life,places).id;
+      }
+    }
     life.lifeSpan=79+Math.floor(random(life)*15);
     for (const k of Object.keys(statNames)) life.stats[k]=50+Math.floor(random(life)*26);
     const distinct=(items,others)=>rngItem(life,items.filter(v=>!others.includes(v.toLowerCase())));
@@ -85,19 +143,40 @@
     life.people={carer:{name:carer,role:'Guardian',bond:64,active:true,met:true},friend:{name:best,role:'Childhood friend',bond:46,active:false,met:false},love:{name:other,role:'Friend',bond:46,active:false,met:false}};
     life.thread=Object.prototype.hasOwnProperty.call(origins,opts.thread)?opts.thread:rngItem(life,Object.keys(origins));
     life.household=householdFor(life);world.initialize(life);sim.initialize(life);
+    if(selected!==undefined)life.sim.timeline={historicalRules:true};
     if(Object.prototype.hasOwnProperty.call(sim.identities,opts.identity))life.sim.identity=opts.identity;
     if(!opts.successor)sim.populateFamily(life);
     model.initialize(life);life.event={id:null,resolved:true};
     if(!opts.successor){
       expansion.activate(life,true);
-      log(life,'Milestone','Born in '+towns[life.town],daily.birth(life,sim.geography));
+      log(life,'Milestone','Born in '+birthplace(life),birthEntry(life));
       for(const p of Object.values(life.people).filter(p=>p.met))log(life,'Family',p.fullName,daily.relative(life,p));
+    }
+    historyDynasty.initialize(life);
+    if(!opts.successor){
+      if(!faithPersonal.allowedBirth(life.born,life.town,opts))throw RangeError('That belief is unavailable in the selected year.');
+      faithPersonal.initialize(life,opts);
+      faithInstitutions.initialize(life);
     }
     return life;
   }
   function customizeBirth(life,opts){
     if(life.ended||blocking(life)||life.sim.generation>1||life.age!==0||life.turns||life.used.length)return false;
     if(!cleanName(opts.name)||!towns[opts.town]||!origins[opts.thread]||![0,1,2,3].includes(opts.skin))return false;
+    const selected=birthYear(opts);
+    const faithOptions={...opts,faithId:opts.faithId??life.sim.faith?.backgroundChoice??'family'};
+    if(!faithPersonal.allowedBirth(selected??life.born,opts.town,faithOptions))return false;
+    if(selected!==undefined&&(!validStart(selected)||(selected<2000&&!historyWorld.available(opts.town,selected))))return false;
+    if(selected!==undefined){
+      const offset=selected-life.born;
+      life.born=selected;
+      life.sim.timeline={historicalRules:true};
+      for(const p of Object.values(life.people))if(Number.isInteger(p.bornYear))p.bornYear+=offset;
+      for(const node of Object.values(life.sim.expansion?.family||{})){
+        node.born+=offset;
+        if(Number.isInteger(node.died))node.died+=offset;
+      }
+    }
     const former=life.name.split(' ').slice(1).join(' '),next=cleanName(opts.name).split(' ').slice(1).join(' ');
     if(former&&next&&former!==next)for(const p of Object.values(life.people)){
       if(!model.isFamily(p)||p.fullName!==p.name+' '+former)continue;
@@ -107,12 +186,23 @@
     life.name=cleanName(opts.name);life.town=opts.town;life.sim.birthplace=opts.town;life.skin=opts.skin;life.thread=opts.thread;
     if(Object.prototype.hasOwnProperty.call(sim.identities,opts.identity))life.sim.identity=opts.identity;
     if(life.sim.expansion){const x=life.sim.expansion;x.passports=[PocketEconomy.keyOf(life)];x.since=life.born;for(const p of Object.values(life.people))if(p.met)p.town=life.town;expansion.kin.sync(life);}
-    life.log[0].title='Born in '+towns[life.town];
-    life.log[0].body=daily.birth(life,sim.geography);
+    expansion.reconcileBirthAmbition(life);
+    if(selected!==undefined){
+      for(const [key,p] of Object.entries(life.people)){
+        if(!p.met)continue;
+        delete p.job;delete p.wealth;
+        model.person(life,key,p);
+      }
+    }
+    faithPersonal.customize(life,faithOptions);
+    if(life.sim.faithWorld)delete life.sim.faithWorld.institutions;
+    faithInstitutions.initialize(life);
+    life.log[0].title='Born in '+birthplace(life);
+    life.log[0].body=birthEntry(life);
     for(const p of Object.values(life.people)){
       const note=life.log.find(e=>e.kind==='Family'&&e.title===p.fullName);if(note)note.body=daily.relative(life,p);
     }
-    if(life.event.id){life.event.id=({box:'box',lens:'lens-start',atlas:'atlas-start'})[life.thread];}
+    if(life.event.id){life.event.id=isHistorical(life)?'era_birth':({box:'box',lens:'lens-start',atlas:'atlas-start'})[life.thread];}
     return true;
   }
   function log(life,kind,title,body,delta={}){
@@ -142,12 +232,15 @@
   function keepsake(life,title) { if(!life.keepsakes.some(k=>k.title===title)) life.keepsakes.push({title,age:life.age}); }
   function migrate(saved,archived=false){
     const life=model.decode(saved);
+    if(life.sim?.timeline&&(typeof life.sim.timeline.historicalRules!=='boolean'||!Number.isSafeInteger(life.born)||life.born<1200)){
+      throw Error('Invalid historical timeline.');
+    }
     if(life.version===1){
       life.thread='box';
       if(!Number.isFinite(life.stats.looks))life.stats.looks=45+((life.rng>>>0)%32);
     }
     if(!Number.isInteger(life.household))life.household=householdFor(life);
-    world.initialize(life);sim.initialize(life);model.initialize(life);if(!life.ended&&!archived){year.workplace(life);year.campus(life);}life.version=4;delete life.actions;
+    world.initialize(life);sim.initialize(life);model.initialize(life);historyDynasty.initialize(life);if(!life.ended&&!archived){year.workplace(life);year.campus(life);}life.version=4;delete life.actions;
     return life;
   }
   function blocking(l){if(!l.sim)return null;if(l.sim.review)return 'outcome';if(l.sim.court)return 'court';return l.event&&!l.event.resolved?'decision':null;}
@@ -200,26 +293,48 @@
     life._yearEntries=[];life.used=[];life.outcome=null;
     life.age++;
     const died=year.mortality(life);if(died)expansion.kin.sync(life);
+    // Pre-expansion lives keep their original dates and existing pending decisions.
+    if(!life.sim.timeline&&calendar(life)>=2050)life.sim.timeline={historicalRules:true};
+    if(life.sim.timeline?.historicalRules){
+      const from=historyWorld.era(calendar(life)-1),to=historyWorld.era(calendar(life));
+      if(from!==to){
+        const labels={renaissance:'Renaissance',industrial:'Industrial Era',twentieth:'20th Century',digital:'Digital Age',future:'Future Era'};
+        log(life,'World',labels[to]||'A new era','The calendar reached '+calendar(life)+'.');
+      }
+      historyWorld.annual(life,context());
+    }
     if(!died){
       year.drift(life);
       const b=sim.settle(life,earnedAge);
-      if(earnedAge<18&&b.wages)log(life,'School','Part-time payday',world.parts[life.world.partJob][0]+' paid '+model.cash(b.wages)+'.',{cash:b.wages});
+      if(earnedAge<18&&b.wages){
+        const shift=world.parts[life.world.partJob]?.[0]||historyEconomy.shiftName(life,earnedAge)||'My part-time job';
+        log(life,'School','Part-time payday',shift+' paid '+historyEconomy.money(life,b.wages)+'.',{cash:b.wages});
+      }
+      if(life.age===18&&life.sim.timeline)delete life.sim.timeline.youthShift;
       year.conditions(life);
       expansion.annual(life,b,earnedAge);
+      annualFaith(life);
       events.queue(life,stories,world,random);
       const changes=model.diff(statsBefore,life.stats),net=life.cash-openingCash;
       const details=Object.entries(changes).filter(([k])=>k!=='bonds').map(([k,n])=>statNames[k]+' '+(n>0?'+':'')+n).join(', ');
-      const summary='Age '+life.age+'. '+occupation(life)+'. '+(details||'Stats held steady')+'. Bank '+(net>0?'+':'')+model.cash(net)+'.';
+      const summary='Age '+life.age+'. '+occupation(life)+'. '+(details||'Stats held steady')+(isHistorical(life)?'. Household cash ':'. Bank ')+(net>0?'+':'')+historyEconomy.money(life,net)+'.';
       const hasNews=life._yearEntries.length>0;
       log(life,'Year','Annual statement',summary,{...changes,cash:net});
       const entry=life._yearEntries[life._yearEntries.length-1];
-      entry.diary=hasNews||life.event.id?'':daily.ordinary(life);
+      entry.diary=hasNews||life.event.id?'':isHistorical(life)?daily.historical(life):daily.ordinary(life);
       entry.role=occupation(life);
     }
+    if(died)annualFaith(life);
+    historyDynasty.annual(life,context());
     life.log.push(...life._yearEntries);delete life._yearEntries;return true;
   }
   function actionList(life) {
     const {age}=life;
+    if(isHistorical(life)&&age>=5)return [
+      ['move','Go for a walk','Spend an hour outside.','shoe',{health:4,joy:2},'I walked home by the long road. Same house.'],
+      ['read','Learn from a neighbor','Ask someone to teach you a skill.','book',{smarts:4,bonds:2},'I learned how to mend a seam. Mine bends left.'],
+      ['play','Make something','Try your hand at a small project.','music',{joy:6,smarts:1},'I made something with my hands. It holds together.']
+    ];
     if(age<5) return [
       ['rest','Blanket nap','Take a nap.','moon',{health:5},'I slept for an hour. Three adults called it a miracle.'],
       ['listen','Follow a sound','Track the noises around the house.','music',{smarts:4, joy:2},'I identified the squeaky door. I requested an encore.'],
@@ -241,7 +356,7 @@
     if(life.sim && life.sim.prison && !key.startsWith('visit-')&&!key.startsWith('social-')&&!['sim-doctor','sim-library','sim-yard','sim-appeal'].includes(key))return 'In custody';
     const repeat=['move','read','play','career-study','career-practice','sim-meditate'].includes(key)||key.startsWith('visit-');
     if(life.used.filter(id=>id===key).length>=(repeat?3:1))return repeat?'Try again next year':'Done this year';
-    if(cost>life.cash)return 'Need $'+cost;
+    if(cost>life.cash)return 'Need '+(life.sim.timeline?.historicalRules?historyEconomy.money(life,cost):'$'+cost);
     return '';
   }
   function act(life,key) {
@@ -269,6 +384,14 @@
     const child=makeLife({seed:(parent.rng^Math.imul(p.bornAt+1,2654435761)^key.charCodeAt(key.length-1))>>>0||1,
       name,town:p.town&&sim.geography.cities[p.town]?p.town:parent.town,skin:parent.skin,thread:parent.thread,successor:true});
     child.born=parent.born+parent.age-age;child.age=age;child.lifeSpan=Math.max(age+4,child.lifeSpan);
+    if(parent.sim.timeline){
+      child.sim.timeline={historicalRules:!!parent.sim.timeline.historicalRules};
+      if(parent.sim.timeline.nobleHouse&&Object.values(portion.assets).some(a=>a.listing?.type==='era-estate')){
+        child.sim.timeline.nobleHouse=true;
+        model.tag(child,'landed-house');
+      }
+    }
+    if(parent.sim.chronicleWorld)child.sim.chronicleWorld=JSON.parse(JSON.stringify(parent.sim.chronicleWorld));
     child.id=p.id;child.name=p.fullName||child.name;child.sim.identity=p.gender||child.sim.identity;
     child.world.owned=portion.assets;child.sim.loans=portion.loans;for(const a of Object.values(child.world.owned))a.at=age;
     child.sim.generation=parent.sim.generation+1;
@@ -299,19 +422,26 @@
     if(age>=18&&p.career&&jobs[p.career]){world.changeJob(child,p.career,true);child.track='work';}
     year.campus(child);
     if(Object.keys(portion.assets).length)log(child,'Assets','Inherited assets',Object.entries(portion.assets).map(([id,asset])=>world.shopping.title(world.shopping.ownedItem(id,asset))).join(', ')+'. I inherited the ownership share.');
-    model.people(child);parent.sim.successor=child.name;return child;
+    model.people(child);historyDynasty.inherit(parent,child,portion,key);
+    for(const field of ['faithWorld','faithCongregations','faithEncounters']){
+      if(parent.sim[field])child.sim[field]=JSON.parse(JSON.stringify(parent.sim[field]));
+    }
+    faithPersonal.inherit(parent,child,key);
+    faithInstitutions.inherit(parent,child);
+    faithLegacy.inherit(parent,child,key,context());
+    parent.sim.successor=child.name;return child;
   }
   function startNext(game,next){
     if(!next||next===game.active)return false;
-    game.archive.unshift(game.active);game.active=next;return true;
+    game.archive.unshift(historyDynasty.archive(game.active,world,jobs));game.active=next;return true;
   }
   function state(l){return model.view(l,world,sim,jobs);}
-  function encodeGame(g){return {version:4,settings:{...g.settings},active:model.encode(g.active,world,sim,jobs),archive:g.archive.map(l=>model.encode(l,world,sim,jobs))};}
+  function encodeGame(g){return {version:4,settings:{...g.settings},active:model.encode(g.active,world,sim,jobs),archive:g.archive.map(l=>historyDynasty.isArchive(l)?l:model.encode(l,world,sim,jobs))};}
   function decodeGame(data){
     if(!data||![1,2,3,4].includes(data.version)||!data.active||!Array.isArray(data.archive))throw Error('Unrecognized save');
-    const active=migrate(data.active),archive=data.archive.map(saved=>migrate(saved,true));
+    const active=migrate(data.active),archive=data.archive.map(saved=>{if(!historyDynasty.isArchive(saved))return migrate(saved,true);historyDynasty.validateArchive(saved);return saved;});
     if(!Number.isInteger(active.age)||!Number.isFinite(active.cash)||!Array.isArray(active.log))throw Error('Incomplete save');
     return {version:4,active,archive,settings:{motion:'system',...(data.settings||{})}};
   }
-  root.PocketEngine={expansion,state,startNext,model,events,year,blocking,acknowledge,encodeGame,decodeGame,stories,statNames,towns,jobs,origins,households,world,sim,continueAs,migrate,makeLife,customizeBirth,copy,chapter,occupation,portrait,decide,advance,actionList,actionReason,act,visit,income,legacyTitle,cleanName,seed};
+  root.PocketEngine={faithEncounters,faithCatalog,faithPersonal,faithMovements,faithInstitutions,faithLegacy,faithCommunity,faithPerform,calendar,isHistorical,historyWorld,historyEconomy,historyDynasty,historyPerform,expansion,state,startNext,model,events,year,blocking,acknowledge,encodeGame,decodeGame,stories,statNames,towns,jobs,origins,households,world,sim,continueAs,migrate,makeLife,customizeBirth,copy,chapter,occupation,portrait,decide,advance,actionList,actionReason,act,visit,income,legacyTitle,cleanName,seed};
 })(typeof module !== 'undefined' && module.exports ? module.exports : window);

@@ -2,6 +2,7 @@
 (function(root){
   'use strict';
   const node=typeof module!=='undefined'&&module.exports;
+  const H=typeof module!=='undefined'&&module.exports?require('./history-economy.js').PocketHistoryEconomy:root.PocketHistoryEconomy;
   const M=node?require('./model.js').PocketModel:root.PocketModel;
   const Ec=node?require('./economy.js').PocketEconomy:root.PocketEconomy;
   const D=node?require('./expansion-data.js').PocketExpansionData:root.PocketExpansionData;
@@ -11,11 +12,20 @@
   const talents=['Numbers','Music','People','Endurance','Craft','Curiosity'];
   const characters=['Patient','Outgoing','Methodical','Adventurous','Ambitious','Practical'];
   const ambitions=['Build a family business','Master a hobby','Reach the boardroom','Build a property portfolio','Put down roots abroad','Keep a promise'];
+  const historicalAmbitions=ambitions.filter((_,i)=>![2,4].includes(i));
+  function birthAmbition(l){
+    const pool=H.historical(l)?historicalAmbitions:ambitions;
+    return pool[M.hash(l.id+'/ambition')%pool.length];
+  }
+  function reconcileBirthAmbition(l){
+    const x=l.sim.expansion;
+    if(x&&H.historical(l)&&!historicalAmbitions.includes(x.ambition))x.ambition=birthAmbition(l);
+  }
   const starts=['A tight household budget','A comfortable household','A family of craftspeople','A home full of books','A big extended family','A household that moves often'];
   const funds={industry:['Industrial shares','Industry'],care:['Healthcare shares','Care'],tech:['Technology shares','Technology'],bonds:['Municipal bond fund','Services']};
   function fresh(l){
     const choose=(items,key)=>items[M.hash(l.id+'/'+key)%items.length],birth=Ec.keyOf(l,l.sim.birthplace||l.town);
-    return {seed:l.id,personality:choose(characters,'personality'),talent:choose(talents,'talent'),ambition:choose(ambitions,'ambition'),start:choose(starts,'start'),
+    return {seed:l.id,personality:choose(characters,'personality'),talent:choose(talents,'talent'),ambition:birthAmbition(l),start:choose(starts,'start'),
       passports:[birth],permits:{},since:l.born+l.age,companies:{},sequence:0,portfolio:{},family:{},hobbies:{},certs:[],awards:[],policies:{autopay:true,lifestyle:'Simple'},discipline:0};
   }
   function state(l){return l.sim.expansion||fresh(l);}
@@ -48,6 +58,7 @@
   function businessYear(l,age=l.age){
     const rows=[],e=Ec.local(l,l.town,age),x=l.sim.expansion;
     if(x)for(const c of Object.values(x.companies)){
+      if(H.businesses[c.type]){rows.push(H.companyQuote(l,c,age));continue;}
       const cfg=D.businesses[c.type],local=Ec.local(l,c.town,age),share=c.share??1;
       const demand=.72+local.cycle*.68+(cfg[1]===local.sector?.24:cfg[1]===local.decline?-.21:0)+(c.clients||0)*.09;
       const revenue=Math.max(0,Math.round(cfg[3]*c.level*share*local.pay*demand));
@@ -77,6 +88,9 @@
     const shop=W.shopping,working=l=>l.age>=18&&l.job&&!['retired','student'].includes(l.job);
     function actions(l,area,ref=''){
       const x=state(l),e=Ec.local(l),list=[],year=l.born+l.age;
+      const historical=H.historical(l),money=amount=>H.enabled(l)?H.money(l,amount):M.cash(amount);
+      if(historical&&['business','company','portfolio','asset','career','shop','visa'].includes(area))return list;
+      if(area==='asset'&&l.world.owned[ref]?.listing?.historical)return list;
       function option(id,title,description,icon,rule,cost,run,once=true){
         const key='expand/'+area+'/'+ref+'/'+id;
         const why=rule||(l.ended?'Life complete':blocking(l)?'Finish the current decision':l.sim.prison?'In custody':once&&l.used.includes(key)?'Done this year':cost>l.cash?'Need '+money(cost):'');
@@ -85,19 +99,21 @@
       if(area==='hobbies'&&l.age>=5){
         for(const [id,[label,stat,icon]] of Object.entries(D.hobbies)){
           const level=x.hobbies[id]||0;
-          option(id,label,'Skill '+level+'/100 · practice once this year.',icon,level>=100?'Mastered':'',0,()=>{
+          const practice=historical?({gardening:'Tend a garden',music:'Practice music',chess:'Play a counting game',running:'Run the paths',ceramics:'Shape pottery',astronomy:'Study the night sky'})[id]:label;
+          option(id,practice,'Skill '+level+'/100 · practice once this year.',icon,level>=100?'Mastered':'',0,()=>{
             const aligned={music:'Music',chess:'Numbers',running:'Endurance',ceramics:'Craft',astronomy:'Curiosity',gardening:'People'}[id]===x.talent;
             x.hobbies[id]=Math.min(100,level+(aligned?14:8)+(x.personality==='Patient'?2:0));apply(l,{[stat]:3,discipline:1});
-            return 'I practiced '+label.toLowerCase()+'. My skill is now '+x.hobbies[id]+'/100.';
+            return historical?practice+'. My skill reached '+x.hobbies[id]+'/100.':'I practiced '+label.toLowerCase()+'. My skill is now '+x.hobbies[id]+'/100.';
           });
         }
         if(l.age>=12)for(const [i,goal] of ambitions.entries()){
+          if(historical&&!historicalAmbitions.includes(goal))continue;
           option('goal-'+i,'Set goal · '+goal,'Meeting your personal ambition gives an extra happiness boost.','flag',
             goal===x.ambition?'Current ambition':x.awards.includes(goal)?'Already achieved':l.used.includes('new-ambition')?'One new ambition per birthday':'',0,()=>{
               x.ambition=goal;l.used.push('new-ambition');return 'I wrote down a new ambition: '+goal.toLowerCase()+'.';
             });
         }
-        if(l.age>=18)for(const lifestyle of ['Simple','Comfortable','Luxury'])option('life'+lifestyle,lifestyle+' lifestyle',lifestyle==='Simple'?'End the recurring lifestyle bill.':'Annual bill '+money(Math.round((lifestyle==='Luxury'?7200:850)*e.cost))+'.','home',x.policies.lifestyle===lifestyle?'Current lifestyle':'',0,()=>{x.policies.lifestyle=lifestyle;return 'I switched to a '+lifestyle.toLowerCase()+' lifestyle.';},false);
+        if(!historical&&l.age>=18)for(const lifestyle of ['Simple','Comfortable','Luxury'])option('life'+lifestyle,lifestyle+' lifestyle',lifestyle==='Simple'?'End the recurring lifestyle bill.':'Annual bill '+money(Math.round((lifestyle==='Luxury'?7200:850)*e.cost))+'.','home',x.policies.lifestyle===lifestyle?'Current lifestyle':'',0,()=>{x.policies.lifestyle=lifestyle;return 'I switched to a '+lifestyle.toLowerCase()+' lifestyle.';},false);
       }
       if(area==='travel'&&l.age>=18){
         const together=x.policies.moveFamily!==false;
@@ -127,15 +143,15 @@
         const p=l.people[ref];if(!p||!p.met||!M.isAlive(p))return list;
         const age=M.ageOf(l,p);
         option('reconcile','Clear the air','Restore contact and work on trust.','heart',!p.rivalry&&!p.cutOff&&p.bond>=40?'No falling-out to resolve':'',0,()=>{
-          p.cutOff=false;p.active=true;p.bond=M.clamp(p.bond+13);Kin.remember(l,p,'reconcile',13);return p.name+' picked up. We both stayed on the call.';
+          p.cutOff=false;p.active=true;p.bond=M.clamp(p.bond+13);Kin.remember(l,p,'reconcile',13);return historical?'We talked it through in person. Neither of us left early.':p.name+' picked up. We both stayed on the call.';
         });
         if(p.active){
-          option('argue','Call out a disagreement','Risk a lasting rivalry.','bolt',l.age<8?'Opens at 8':'',0,()=>{p.bond=M.clamp(p.bond-9);Kin.remember(l,p,'argue',-9);return p.name+' still has the screenshots.';});
+          option('argue','Call out a disagreement','Risk a lasting rivalry.','bolt',l.age<8?'Opens at 8':'',0,()=>{p.bond=M.clamp(p.bond-9);Kin.remember(l,p,'argue',-9);return H.enabled(l)&&year<2009?p.name+' remembers exactly what I said.':p.name+' still has the screenshots.';});
           option('loan','Lend '+money(600),'They can repay you in a later year if they trust you.','wallet',l.age<18||age<18?'Both must be adults':p.favor?'An earlier loan is outstanding':'',600,()=>{
-            p.wealth+=600;p.favor={amount:600,due:l.age+2+M.hash(p.id)%4};p.bond=M.clamp(p.bond+6);Kin.remember(l,p,'loan',6);M.tag(l,'kept-promise');return 'I lent '+p.name+' $600. They put the due date in their phone.';
+            p.wealth+=600;p.favor={amount:600,due:l.age+2+M.hash(p.id)%4};p.bond=M.clamp(p.bond+6);Kin.remember(l,p,'loan',6);M.tag(l,'kept-promise');return 'I lent '+p.name+' '+money(600)+(H.enabled(l)&&year<2009?'. We agreed on a date.':'. They put the due date in their phone.');
           });
           if(p.role==='Child'||p.role==='Stepchild')option('mentor','Help with a long-term goal','Improve trust and their prospects.','book',age<4?'From age 4':'',0,()=>{
-            p.bond=M.clamp(p.bond+8);p.mentoring=(p.mentoring||0)+1;Kin.remember(l,p,'mentor',8);if(age>=18&&p.mentoring>=2){p.job='Team supervisor';p.wealth+=400;}return p.name+' picked a goal. We wrote down a first step.';
+            p.bond=M.clamp(p.bond+8);p.mentoring=(p.mentoring||0)+1;Kin.remember(l,p,'mentor',8);if(age>=18&&p.mentoring>=2){p.job=historical?H.npcJob(l,M.hash(p.id),p.town):'Team supervisor';p.wealth+=400;}return p.name+' picked a goal. We wrote down a first step.';
           });
           if(p.role==='Partner'||p.role==='Spouse')option('plans','Plan your future together','Build loyalty and discuss the household budget.','rings','',0,()=>{p.bond=M.clamp(p.bond+6);Kin.remember(l,p,'talk',6);apply(l,{joy:3});return 'We agreed on a budget. The spreadsheet got its own anniversary.';});
         }
@@ -188,7 +204,7 @@
       if(area==='company'){
         const c=x.companies[ref];if(!c)return list;
         option('clients','Pitch to a new client','Increase future revenue.','chat',c.clients>=8?'Client book full':'',0,()=>{c.clients++;return 'A new client signed a contract.';});
-        const cost=Math.ceil(D.businesses[c.type][2]*.4*(c.share??1));
+        const cost=Math.ceil((D.businesses[c.type]||H.businesses[c.type])[2]*.4*(c.share??1));
         option('expand','Expand the business','Invest '+money(cost)+' and hire a team member.','shop',c.level>=6?'At capacity':'',cost,()=>{c.capital+=cost;c.level++;c.staff++;return 'We added a team member and expanded capacity.';});
         option('manager',c.manager?'Manage it yourself':'Hire a business manager','Manager pay is included in operating expenses. Managers develop clients.','bag','',0,()=>{delete c.managerId;c.manager=!c.manager;return c.manager?'I hired a manager. They took the office keys.':'I took over day-to-day management.';},false);
         for(const [key,p] of Object.entries(l.people)){
@@ -301,6 +317,14 @@
       const kind=({career:'Career',company:'Career',business:'Career',family:'Family',relative:'People',estate:'Family',visa:'Milestone',hobbies:'Activity'}[area])||'Assets';
       log(l,kind,o.title,text,delta);l.turns++;return {title:o.title,text,delta,accent:kind};
     }
+    function recordAmbitions(l,x){
+      for(const [i,met] of earned(l,x).entries()){
+        const goal=ambitions[i];
+        if(!met||x.awards.includes(goal))continue;
+        x.awards.push(goal);l.keepsakes.push({title:goal,age:l.age});apply(l,{joy:goal===x.ambition?9:4});
+        log(l,'Achievement',goal,'I crossed this one off my list.');
+      }
+    }
     function annual(l,b,earnedAge){
       const x=activate(l),year=l.born+l.age,e=Ec.local(l,l.town,earnedAge);
       if(x.lastYear===year)return;x.lastYear=year;
@@ -317,17 +341,22 @@
         }
         if(b.arrears||b.skipped)x.missed=Math.min(18,(x.missed||0)+1);else if(x.missed)x.missed--;
         if(working(l)&&e.phase==='Recession'&&l.world.performance<58&&(x.discipline>=2||Ec.sample(x.seed,l.job+'/layoff/'+year)<e.unemployment*.85)){
-          const job=jobs[l.job][0];W.changeJob(l,null,true);x.discipline=0;log(l,'Career','Made redundant','My '+job.toLowerCase()+' position was cut. My desk plant came home.');
+          const job=jobs[l.job][0];W.changeJob(l,null,true);x.discipline=0;log(l,'Career','Made redundant','My '+job.toLowerCase()+' position ended. There was less work to go around.');
         }
         for(const [id,a] of Object.entries(l.world.owned)){
           const item=shop.ownedItem(id,a),roll=Ec.sample(id,year);
-          if(item.category==='Vehicle'&&roll<.049){const cost=Math.round(a.value*.065*(a.insured?.2:1));a.value=Math.max(0,a.value-cost);a.condition=Math.max(10,a.condition-(a.insured?2:12));log(l,'Assets','Vehicle damage',shop.title(item)+(a.insured?' needed a repair. Insurance covered most of it.':' lost value after a parking incident.'));}
+          if(!item.historical&&item.category==='Vehicle'&&roll<.049){const cost=Math.round(a.value*.065*(a.insured?.2:1));a.value=Math.max(0,a.value-cost);a.condition=Math.max(10,a.condition-(a.insured?2:12));log(l,'Assets','Vehicle damage',shop.title(item)+(a.insured?' needed a repair. Insurance covered most of it.':' lost value after a parking incident.'));}
           if(item.category==='Property'&&a.tenant&&roll<.15){a.tenant=null;a.vacant=true;log(l,'Assets','Lease ended','The tenant at '+shop.title(item)+' gave notice.');}
           if(item.category==='Property'&&a.manager&&a.vacant){a.tenant={name:'Managed tenant',since:year};a.vacant=false;}
         }
         if(x.policies.lifestyle!=='Simple')apply(l,{joy:x.policies.lifestyle==='Luxury'?4:2});
       }
       Kin.annual(l,log);
+      if(H.historical(l)){
+        recordAmbitions(l,x);
+        if(year%4===0){const p=H.profile(l);log(l,'World','Market survey','Trade receipts covered '+Math.round(p.pay/p.cost*100)+'% of the usual basket of goods.');}
+        return;
+      }
       const here=Ec.local(l);
       if(here.phase!==x.phase&&here.phase!=='Steady')log(l,'World',here.phase+' in '+G.cities[l.town].name,'Local unemployment reached '+pct(here.unemployment)+'. Lenders quoted '+pct(here.rate)+'.');
       if(year===here.baseYear)log(l,'World',here.project,G.cities[l.town].name+' reported '+here.project.toLowerCase()+'. Local jobs and property prices changed.');
@@ -335,7 +364,7 @@
       x.worldHistory.push({year,town:l.town,phase:here.phase,industry:here.sector,unemployment:Math.round(here.unemployment*1000)/10});
       if(x.worldHistory.length>24)x.worldHistory.shift();
       x.phase=here.phase;
-      const now=earned(l,x);for(let i=0;i<now.length;i++)if(now[i]&&!x.awards.includes(ambitions[i])){x.awards.push(ambitions[i]);l.keepsakes.push({title:ambitions[i],age:l.age});apply(l,{joy:ambitions[i]===x.ambition?9:4});log(l,'Achievement',ambitions[i],'I crossed this one off my list.');}
+      recordAmbitions(l,x);
       const doc=Ec.papers(l,l.town);if(!doc.citizen&&!doc.valid&&working(l)){const job=jobs[l.job][0];W.changeJob(l,null,true);log(l,'Career','Work authorization expired','My '+job.toLowerCase()+' contract ended when my permit expired.');}
       if(!doc.citizen&&doc.permit?.until===year)log(l,'Milestone','Visa renewal due','My permit expires this year. I can renew it under Travel.');
     }
@@ -358,7 +387,7 @@
       Kin.inherit(l,child);
       if(part.contested){x.dispute={amount:part.contested};log(child,'Family','Inheritance disputed','The executor held '+money(part.contested)+' until the family settles the dispute.');}
     }
-    return {state,activate,actions,perform,annual,moved,inherit,credit,shares,portfolio,companyValue,expenses,businessYear,ambitions,funds,data:D,economy:Ec,kin:Kin};
+    return {state,activate,reconcileBirthAmbition,actions,perform,annual,moved,inherit,credit,shares,portfolio,companyValue,expenses,businessYear,ambitions,funds,data:D,economy:Ec,kin:Kin};
   }
   root.PocketExpansion={create,credit,portfolio,companyValue,expenses,businessYear,state};
 })(typeof module!=='undefined'&&module.exports?module.exports:window);

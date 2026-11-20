@@ -4,6 +4,24 @@
   const M=typeof module!=='undefined'&&module.exports?require('./model.js').PocketModel:root.PocketModel;
   const Ec=typeof module!=='undefined'&&module.exports?require('./economy.js').PocketEconomy:root.PocketEconomy;
   const G=typeof module!=='undefined'&&module.exports?require('./geography.js').PocketGeography:root.PocketGeography;
+  const node=typeof module!=='undefined'&&module.exports;
+  function historyEconomy(){return node?require('./history-economy.js').PocketHistoryEconomy:root.PocketHistoryEconomy;}
+  function historyWorld(){return node?require('./history-world.js').PocketHistoryWorld:root.PocketHistoryWorld;}
+  function period(l){const year=l.born+l.age;return !!l.sim?.timeline?.historicalRules&&(year<2000||year>=2050);}
+  function adultTitle(l,p){
+    return period(l)?historyEconomy().npcJob(l,M.hash(p.id),p.town||l.town).title:'Office assistant';
+  }
+  function annualSavings(l,p,age){
+    if(age<18)return 0;
+    if(!period(l))return 120+(p.generosity<50?450:180);
+    const main=historyEconomy().npcJob(l,M.hash(p.id),p.town||l.town);
+    return Math.round(main.annual*(p.generosity<50?.036:.018)*(age>=67?.45:1));
+  }
+  function moveTown(l,p,h){
+    if(period(l)){const options=historyWorld().nearby(p.town,l.born+l.age);return options.length?options[h%options.length]:p.town;}
+    const c=G.countries[G.cities[p.town].code].cities;return c[h%c.length].id;
+  }
+  function townLabel(l,town){return period(l)?historyWorld().place(town,l.born+l.age).city:G.cities[town].name;}
   const relatives=['Grandparent','Grandchild','Aunt','Uncle','Cousin','Niece','Nephew','Stepparent','Stepchild','Stepsibling','Parent-in-law','Sibling-in-law','Child-in-law','Relative'];
   const names=['Noor','Jonas','Elena','Yuki','Ana','Tomas','Mina','Alex','Pia','Owen','Ada','Jean','Sol','Idris','Rosa','Kiran','Inez','Luca','Rae','Nell','Remy','Lena','Isa','Felix'];
   function graph(l){return l.sim.expansion.family;}
@@ -19,7 +37,9 @@
   function snapshot(l,p){
     const tree=graph(l),node=tree[p.id]||(tree[p.id]={id:p.id,parents:[]});
     Object.assign(node,{name:p.fullName,born:p.bornYear,gender:p.gender,town:p.town||l.town});
-    if(!M.isAlive(p))node.died=l.born+p.diedAt;
+    if(p.home)node.home=p.home;
+    if(p.enterprise)node.business=p.enterprise.name;
+    if(!M.isAlive(p)){node.died=l.born+p.diedAt;if(p.job)node.career=p.job;}
     return node;
   }
   function self(l){
@@ -93,9 +113,49 @@
     }
   }
   function birthRole(p,h){return p.role==='Child'?'Grandchild':p.role==='Sibling'?(h%2?'Niece':'Nephew'):['Aunt','Uncle'].includes(p.role)?'Cousin':'Relative';}
+  function buyHome(l,p,cost){
+    const market=node?require('./market.js').PocketMarket:root.PocketMarket;
+    const age=M.ageOf(l,p),resident={...l,id:p.id,born:l.born+l.age-age,age,town:p.town,ended:false};
+    const lots=period(l)?historyEconomy().listings(resident).filter(q=>q.category==='Property'):market.inventory(resident,'keyline');
+    if(!lots.length)return false;
+    const lot=lots[0],price=Math.min(cost,lot.price);
+    p.wealth-=price;p.home=p.town;p.homeEquity=price;p.homeDeed={id:lot.id,listing:{...(lot.listing||lot)},condition:lot.condition,share:price/lot.price,value:price,acquiredYear:l.born+l.age,town:p.town};
+    return true;
+  }
+  function foundBusiness(l,p,cost){
+    const y=l.born+l.age,H=historyEconomy(),kind=H.period(y);
+    const type=period(l)?Object.keys(H.businesses).find(id=>id.startsWith('era-'+kind+'-')):'repair';
+    if(!type)return false;
+    const title=period(l)?H.businesses[type][0]:'Repair workshop';
+    p.wealth-=cost;p.enterprise={name:p.name+' '+title.toLowerCase(),type,founder:p.fullName,founded:y,town:p.town,capital:cost,initial:cost};
+    return true;
+  }
+  function distributeHousehold(l,p,tree,log){
+    if((!p.home&&!p.enterprise)||p.estateSettled)return;
+    const child=Object.values(l.people).filter(n=>M.isAlive(n)&&tree[n.id]?.parents.includes(p.id)).sort((a,b)=>a.bornYear-b.bornYear)[0];
+    if(!child)return;
+    if(p.home){
+      if(!child.home){child.home=p.home;child.homeEquity=p.homeEquity||0;if(p.homeDeed)child.homeDeed=p.homeDeed;}
+      else child.wealth+=(p.homeEquity||0);
+      delete p.home;delete p.homeEquity;delete p.homeDeed;
+    }
+    if(p.enterprise){if(!child.enterprise)child.enterprise={...p.enterprise};else child.wealth+=p.enterprise.capital;delete p.enterprise;}
+    p.estateSettled=true;
+    log(l,'Family',child.name+' inherited family property',p.name+' left the household estate to '+child.name+'.');
+  }
   function annual(l,log){
     const tree=sync(l),year=l.born+l.age;
-    for(const p of Object.values(l.people)){
+    const contacts=Object.values(l.people);
+    let living=contacts.filter(p=>M.isFamily(p)&&M.isAlive(p)).length;
+    for(const p of contacts){
+      if(p.diedAt===l.age)distributeHousehold(l,p,tree,log);
+      if(p.enterprise&&M.isAlive(p)){
+        const cycle=Ec.local(l,p.town||l.town).phase;
+        const profit=Math.round(p.enterprise.capital*(cycle==='Recession'?-.09:.025));
+        p.enterprise.capital=Math.max(0,p.enterprise.capital+Math.min(profit,Math.round(profit*.4)));
+        p.wealth+=Math.max(0,profit-Math.round(profit*.4));
+        if(p.enterprise.capital<Math.round(p.enterprise.initial*.3)){delete p.enterprise;log(l,'Family',p.name+' closed a business','The business had run out of working capital.');}
+      }
       if(!p.met||!M.isAlive(p)||p.cutOff||(!M.isFamily(p)&&!['Friend','Childhood friend','Spouse','Partner','Coworker'].includes(p.role)))continue;
       if(!p.town)p.town=l.town;
       if(p.favor&&l.age>=p.favor.due&&p.wealth>=p.favor.amount&&l.age>=18){
@@ -106,17 +166,24 @@
       const h=M.hash(p.id+'/'+year+'/independent'),roll=Ec.sample(p.id,year);
       if(roll>.042)continue;
       const npcYear=Ec.local(l,p.town),stage=h%6;let line='';
-      if(stage===0&&age<62){p.career=['organizer','nurse','clerk','accountant','mechanic'][h%5];p.job=['Events coordinator','Clinical nurse','Shop clerk','Accountant','Fleet mechanic'][h%5];p.wealth+=800;line='started work as a '+p.job.toLowerCase();}
-      else if(stage===1&&p.wealth>4500&&!p.home){p.wealth-=4200;p.home=p.town;line='bought a home in '+G.cities[p.town].name;}
-      else if(stage===2&&p.role!=='Spouse'){const c=G.countries[G.cities[p.town].code].cities;p.town=c[h%c.length].id;line='moved to '+G.cities[p.town].name;}
-      else if(stage===3&&age<60&&tree[p.id]&&!tree[p.id].spouse&&Object.keys(tree).length<100){
+      const historical=period(l),job=historical?historyEconomy().npcJob(l,h,p.town):null;
+      const houseCost=historical?Math.max(300,Math.round(job.annual*.65)):4200;
+      if(stage===0&&age<62){
+        p.career=job?job.id:['organizer','nurse','clerk','accountant','mechanic'][h%5];p.job=job?job.title:['Events coordinator','Clinical nurse','Shop clerk','Accountant','Fleet mechanic'][h%5];
+        p.wealth+=job?Math.round(job.annual*.028):800;line='started work as a '+p.job.toLowerCase();
+      }
+      else if(stage===1&&p.wealth>=houseCost&&!p.home){if(buyHome(l,p,houseCost))line='bought a share in a home in '+townLabel(l,p.town);}
+      else if(stage===2&&p.role!=='Spouse'){const town=moveTown(l,p,h);if(town!==p.town){p.town=town;line='moved to '+townLabel(l,town);}}
+      else if(stage===3&&age<60&&tree[p.id]&&!tree[p.id].spouse&&living<96){
         const role=p.role==='Child'?'Child-in-law':p.role==='Mother'||p.role==='Father'?'Stepparent':p.role==='Sibling'?'Sibling-in-law':'Relative';
         const partner=add(l,p.id+'/partner/'+year,role,year-Math.max(18,age+(h%7)-3));
-        marry(l,p.id,partner.id);line='married '+partner.name;
+        marry(l,p.id,partner.id);living++;line='married '+partner.name;
         if(role==='Stepparent'&&age>28){const step=add(l,partner.id+'/step','Stepsibling',Math.min(year,partner.bornYear+23));link(l,partner.id,step.id);}
-      }else if(stage===4&&age<44&&['Child','Sibling','Aunt','Uncle'].includes(p.role)&&Object.keys(tree).length<100){
-        const child=add(l,p.id+'/baby/'+year,birthRole(p,h),year);link(l,p.id,child.id);const other=tree[p.id]?.spouse;if(other)link(l,other,child.id);line='welcomed '+child.name;
-      }else if(npcYear.phase==='Recession'||stage===5){const loss=Math.min(p.wealth,500+h%2800);p.wealth-=loss;p.moneyTrouble=year;line='fell behind on bills';}
+      }else if(stage===4&&age<44&&['Child','Sibling','Aunt','Uncle'].includes(p.role)&&living<96){
+        const child=add(l,p.id+'/baby/'+year,birthRole(p,h),year);living++;link(l,p.id,child.id);const other=tree[p.id]?.spouse;if(other)link(l,other,child.id);line='welcomed '+child.name;
+      }else if(stage===5&&(h>>>4)%3===0&&!p.enterprise&&p.wealth>houseCost*2&&npcYear.phase!=='Recession'){
+        if(foundBusiness(l,p,houseCost))line='opened '+p.enterprise.name;
+      }else if(npcYear.phase==='Recession'||stage===5){const loss=Math.min(p.wealth,historical?Math.round(job.annual*(.06+(h%17)/100)):500+h%2800);p.wealth-=loss;p.moneyTrouble=year;line='fell behind on bills';}
       if(line){if(tree[p.id])snapshot(l,p);if(M.isFamily(p)||p.bond>=50)log(l,'Family',p.name+' '+line,p.name+' '+line+'.');}
     }
   }
@@ -143,6 +210,7 @@
     for(const [key,p] of Object.entries(parent.people)){
       if(!tree[p.id]||p.id===child.id)continue;
       const role=relationship(tree,child.id,p.id),entry=known.get(p.id);
+      if(!M.isAlive(p)&&!entry&&role==='Relative')continue;
       if(entry){const existing=entry[1];existing.memories=[];if(existing.role!=='Guardian')existing.role=role;continue;}
       const n={...p,role,bornYear:p.bornYear,active:M.isAlive(p)&&!p.cutOff,met:true,kinExtra:true,memories:[]};
       delete n.favor;delete n.rivalry;delete n.bornAt;delete n.atSchool;delete n.trust;delete n.loyalty;
@@ -152,5 +220,5 @@
     }
     sync(child);
   }
-  root.PocketKinship={relatives,sync,seed,partners,coparent,remember,annual,relationship,inherit};
+  root.PocketKinship={adultTitle,annualSavings,relatives,sync,seed,partners,coparent,remember,annual,relationship,inherit};
 })(typeof module!=='undefined'&&module.exports?module.exports:window);

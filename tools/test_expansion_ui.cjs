@@ -59,7 +59,7 @@ let downloaded,revoked=false;
 const files={Blob:class {constructor(parts){this.data=parts.join('');}},URL:{createObjectURL(blob){downloaded=blob.data;return 'blob:test';},revokeObjectURL(){revoked=true;}},
   FileReader:class {readAsText(file){this.result=file.text;this.onload();}},setTimeout:f=>f()};
 const html=fs.readFileSync(process.env.POCKET_PREVIEW||path.join(__dirname,'../build/Pocket-Years-Play.html'),'utf8');
-const scripts=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]);assert.equal(scripts.length,22);
+const scripts=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]);assert.equal(scripts.length,Array.from(fs.readFileSync(path.join(base,'index.html'),'utf8').matchAll(/<script defer src="/g)).length);
 let fileName='';const web=start(memory(),{scripts,browserFiles:files,download:(url,name)=>{assert.equal(url,'blob:test');fileName=name;}});
 sheet(web,'checkpoint');hit(web,'export-file');assert.equal(fileName,'Pocket-Years-backup.json');assert(revoked);assert(JSON.parse(downloaded).checksum);
 sheet(web,'file-import');web.chooseFile({size:downloaded.length,text:downloaded});assert(txt(web).includes('Restore imported life'));hit(web,'import-file');

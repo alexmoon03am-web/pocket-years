@@ -66,5 +66,17 @@
     const seen=l.quietSeen[stage]||0,offset=M.hash(l.id+' day '+stage)%pool.length;
     l.quietSeen[stage]=seen+1;return pool[(offset+seen)%pool.length];
   }
-  root.PocketDaily={birth,relative,ordinary};
+  function historical(l){
+    const stage=M.stage(l),y=l.born+l.age;
+    const household=['I shelled a bowl of peas. Half rolled under the table.','I learned which floorboard wakes everybody up.','I hid a stone in my shoe. I found it again.'];
+    const period=y<1500?['The market opened late. The geese arrived on time.','Our roof leaked into the good bowl.','I helped mend a basket. We now own a smaller basket.']:
+      y<1700?['I watched a sign painter change one letter. The price went up.','I copied a receipt twice. Both copies disagreed.','I bought a length of cloth and measured it at home. Short again.']:
+      y<1900?['A new tool arrived at the workshop. Its first job was fixing the old one.','The morning shift started before the sun did.','Someone borrowed my good coat. I saw it at the market.']:
+      ['I repaired a chair that had survived three moves. It squeaks in a different key.','I took the long way home and arrived at the same doorstep.','I read the classifieds. Somebody wanted their ladder back.'];
+    const options=stage==='infant'||stage==='child'?household:period;
+    const key='era-'+stage+'-'+Math.floor(y/100);
+    const n=l.quietSeen[key]||0;l.quietSeen[key]=n+1;
+    return options[(n+M.hash(l.id+key))%options.length];
+  }
+  root.PocketDaily={birth,relative,ordinary,historical};
 })(typeof module!=='undefined'&&module.exports?module.exports:window);

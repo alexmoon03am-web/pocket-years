@@ -7,7 +7,19 @@
     if(key==='grade')return l.world.grade;
     return Object.prototype.hasOwnProperty.call(l.hidden,key)?l.hidden[key]:l.stats[key];
   }
+  const techYear={'viral-photo':2004,'last-minute-shift':2008,'tech-release':2008,'long-distance':2009};
+  function fitsYear(l,event){
+    if(!event)return false;
+    const historic=!!l.sim.timeline?.historicalRules,y=l.born+l.age;
+    const eraEvent=typeof event.id==='string'&&event.id.startsWith('era_');
+    if(eraEvent&&!historic)return false;
+    if(!historic)return true;
+    if(y<2000&&event.id&&!eraEvent&&event.minYear===undefined&&event.maxYear===undefined)return false;
+    if(techYear[event.id]&&y<techYear[event.id])return false;
+    return (event.minYear===undefined||y>=event.minYear)&&(event.maxYear===undefined||y<=event.maxYear);
+  }
   function eligible(l,event){
+    if(!fitsYear(l,event))return false;
     const r=event.rule||{};
     if((r.minAge!==undefined&&l.age<r.minAge)||(r.maxAge!==undefined&&l.age>r.maxAge))return false;
     if(r.lifeStage&&!r.lifeStage.includes(M.stage(l)))return false;
@@ -46,8 +58,9 @@
     const roll=random(l),rate=(l.age<4?.25:.46)+(l.hidden.craziness-50)*.0011+Math.abs(l.hidden.karma-50)*.0006;
     const count=roll<.024+l.hidden.craziness*.0007?2:roll<rate?1:0;
     if(!l.sim.prison&&list.length<2){
-      const prior=world.nextEvent(l);if(prior){if(!prior.person||l.people[prior.person]&&M.isAlive(l.people[prior.person]))take(prior.id,prior.person);}
+      const prior=world.nextEvent(l);if(prior&&fitsYear(l,stories[prior.id])&&(!prior.person||l.people[prior.person]&&M.isAlive(l.people[prior.person])))take(prior.id,prior.person);
     }
+    if(l.age===1&&l.sim.timeline?.historicalRules&&l.born+l.age<2000&&stories.era_birth&&!l.seen.includes('era_birth'))take('era_birth');
     while(list.length<count){
       const candidates=Object.values(stories).filter(e=>e.random&&!chosen.has(e.id)&&eligible(l,e));
       const fresh=candidates.filter(e=>!l.seen.includes(e.id));
@@ -62,5 +75,5 @@
     if(!opt.branches)return {text:opt.result,effects:opt.effects,change:opt.change};
     return draw(l,opt.branches,b=>b.weight+(b.stat?(stat(l,b.stat)||0)*(b.scale||0):0),random);
   }
-  root.PocketEvents={eligible,draw,queue,choose,stat};
+  root.PocketEvents={eligible,fitsYear,draw,queue,choose,stat};
 })(typeof module!=='undefined'&&module.exports?module.exports:window);

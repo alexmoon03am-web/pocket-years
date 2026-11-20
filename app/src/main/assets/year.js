@@ -3,6 +3,10 @@
   'use strict';
   const PocketEconomy=typeof module!=='undefined'&&module.exports?require('./economy.js').PocketEconomy:root.PocketEconomy;
   const M=typeof module!=='undefined'&&module.exports?require('./model.js').PocketModel:root.PocketModel;
+  const node=typeof module!=='undefined'&&module.exports;
+  function kin(){return node?require('./kinship.js').PocketKinship:root.PocketKinship;}
+  function period(l){return !!l.sim?.timeline?.historicalRules&&l.born+l.age<2000;}
+  function money(l,n){return period(l)?(node?require('./history-economy.js').PocketHistoryEconomy:root.PocketHistoryEconomy).money(l,n):M.cash(n);}
   const workerNames=['Devin','Nora','Mel','Inez','Raj','Dale','Cass','Bo','Mira','Gus','Anya','Kai'];
   function create({random,rngItem,apply,log,world,sim,jobs}){
     function workplace(l){
@@ -32,7 +36,7 @@
       if((l.sim.campusKey||null)===current)return;
       for(const p of Object.values(l.people)){
         if(!p.atSchool)continue;p.atSchool=false;
-        if(p.job==='Student'&&M.ageOf(l,p)>=18)p.job='Office assistant';
+        if(p.job==='Student'&&M.ageOf(l,p)>=18)p.job=kin().adultTitle(l,p);
         if(p.role==='Classmate'||p.role==='Teacher'){
           p.role=p.role==='Teacher'?'Former teacher':'Former classmate';p.active=false;
         }
@@ -61,9 +65,9 @@
       for(const p of Object.values(l.people)){
         if(!p.met||!M.isAlive(p))continue;
         const age=M.ageOf(l,p);
-        if(age===5)p.job='Student';if(age===18&&p.job==='Student'&&!p.atSchool)p.job='Office assistant';if(age===67)p.job='Retired';
+        if(age===5)p.job='Student';if(age===18&&p.job==='Student'&&!p.atSchool)p.job=kin().adultTitle(l,p);if(age===67)p.job='Retired';
         if(!p.town&&l.sim.expansion)p.town=l.town;
-        if(age>=18)p.wealth+=Math.floor(120+(p.generosity<50?450:180));
+        if(age>=18)p.wealth+=kin().annualSavings(l,p,age);
         const risk=age<55?.0006:age<75?.0025+(age-55)*.0006:.016+(age-75)*.0055;
         if(age<103){
           // A newly materialized class roster must not reroll an existing character's mortality.
@@ -83,11 +87,11 @@
           const amount=Math.floor(p.wealth*(p.role==='Spouse'?.8:.62)/(p.role==='Spouse'?1:1+siblings));
           p.wealth-=amount;
           if(amount){if(l.age<18)s.trust+=amount;else l.cash+=amount;
-            log(l,'Family','An inheritance',M.cash(amount)+(l.age<18?' went into trust until 18.':' cleared probate. The bank spelled my name right.'),l.age<18?{trust:amount}:{cash:amount});}
+            log(l,'Family','An inheritance',money(l,amount)+(l.age<18?' went into trust until 18.':period(l)?' came to me from the estate.':' cleared probate. The bank spelled my name right.'),l.age<18?{trust:amount}:{cash:amount});}
         }
         if(p.bond>=60)apply(l,{joy:-4});
       }
-      if(l.age>=18&&s.trust){const sum=s.trust;s.trust=0;l.cash+=sum;log(l,'Family','Trust released',M.cash(sum)+' arrived. I can now disappoint the trustees.',{cash:sum,trust:-sum});}
+      if(l.age>=18&&s.trust){const sum=s.trust;s.trust=0;l.cash+=sum;log(l,'Family','Trust released',money(l,sum)+' arrived. I can now disappoint the trustees.',{cash:sum,trust:-sum});}
       const severity=s.illnesses.reduce((n,c)=>n+c.severity*(c.chronic?1:.22),0);
       const addiction=s.addictions.reduce((n,a)=>n+(a.sober?0:a.severity),0);
       const risk=l.age<40?.00025:l.age<65?.001+(l.age-40)*.00028:l.age<80?.009+(l.age-65)*.0015:.032+(l.age-80)*.007;
@@ -128,12 +132,12 @@
       }
       for(const i of s.injuries.slice()){
         i.years++;i.severity=Math.max(0,i.severity-18);
-        if(!i.severity){s.injuries.splice(s.injuries.indexOf(i),1);log(l,'Health','Injury healed','My '+i.name+' healed. The medical bill did its own thing.');}
+        if(!i.severity){s.injuries.splice(s.injuries.indexOf(i),1);log(l,'Health','Injury healed','My '+i.name+' healed.');}
       }
       if(l.age>=3&&s.illnesses.length<3&&random(l)<(l.age>63?.095:.043)){
         const chronic=l.age>27&&random(l)<.23,name=chronic?'joint condition':rngItem(l,['chest cold','stomach bug','sinus infection']);
         if(!s.illnesses.some(c=>c.name===name)){s.illnesses.push({name,chronic,severity:chronic?38:21,years:0,treated:false});
-          log(l,'Health','Diagnosis','I developed a '+name+'. The clinic has my file.',apply(l,{health:-3}));}
+          log(l,'Health','Diagnosis','I developed a '+name+(period(l)?'. I stayed home.':'. The clinic has my file.'),apply(l,{health:-3}));}
       }
       for(const a of s.addictions){
         a.years++;
@@ -144,10 +148,14 @@
       }
       if(l.age>=18&&l.job&&!['student','retired'].includes(l.job))s.workYears++;
       if(l.age===5){l.people.friend.met=l.people.friend.active=M.isAlive(l.people.friend);}
-      if([5,11,14].includes(l.age)&&!s.dropped){const name=M.school(l).name;l.world.schoolHistory.push(name);log(l,'School','Enrolled at '+name,'I started at '+name+'. They issued a timetable.');}
+      if([5,11,14].includes(l.age)&&!s.dropped){const name=M.school(l).name;l.world.schoolHistory.push(name);if(period(l)&&l.born+l.age<1900)log(l,'School',name,'I began '+name.toLowerCase()+'. My first task was to watch.');
+        else log(l,'School','Enrolled at '+name,'I started at '+name+'. They issued a timetable.');}
       if(l.age===18)l.track=l.track||'gap';
       if(s.activities.length&&M.school(l).name)apply(l,{[s.activities.includes('track')?'health':'smarts']:1,bonds:1});
-      if(l.age===18&&!s.dropped)log(l,'School','High school graduation','I received a diploma. My locker still smelled bad.');
+      if(l.age===18&&!s.dropped){
+        if(period(l)&&l.born+l.age<1900)log(l,'School','Finished my training','My years of instruction ended. They let me keep my mistakes.');
+        else log(l,'School','High school graduation','I received a diploma. My locker still smelled bad.');
+      }
       world.birthday(l);sim.birthday(l);workplace(l);campus(l);
     }
     return {mortality,drift,conditions,workplace,campus,addiction};

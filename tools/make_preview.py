@@ -16,7 +16,7 @@ def preview(out):
     scripts[-1]=scripts[-1].replace(old,'const embeddedArt='+json.dumps(files,separators=(',',':'))+';\n  function art(name){return embeddedArt[name];}')
     hashes=["'sha256-"+base64.b64encode(hashlib.sha256(s.encode()).digest()).decode()+"'" for s in scripts]
     source=source.replace("script-src 'self' file:","script-src "+' '.join(hashes))
-    source=source.replace('<link rel="stylesheet" href="style.css">','<style>'+ (assets/'style.css').read_text()+'</style>')
+    source=re.sub(r'<link rel="stylesheet" href="([^"]+)">',lambda m:'<style>'+(assets/m.group(1)).read_text()+'</style>',source)
     source=re.sub(r'<script defer src="[^"]+"></script>','',source)
     source=source.replace('</body>',''.join('<script>'+s+'</script>' for s in scripts)+'</body>')
     out.parent.mkdir(parents=True,exist_ok=True);out.write_text(source)

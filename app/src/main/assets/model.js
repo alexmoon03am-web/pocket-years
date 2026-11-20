@@ -1,6 +1,9 @@
 /* Serializable facts, deterministic migration, and read-only projections shared by every client. */
 (function(root){
   'use strict';
+  const node=typeof module!=='undefined'&&module.exports;
+  function economy(){return node?require('./history-economy.js').PocketHistoryEconomy:root.PocketHistoryEconomy;}
+  function historical(l){return !!l.sim?.timeline?.historicalRules&&l.born+l.age<2000;}
   const hiddenKeys=['karma','craziness','discipline','willpower','fertility','notoriety','addictionRisk'];
   const traits=['punctual','generous','blunt','competitive','nosy','patient','frugal','easygoing'];
   const surnames=['Shaw','Brooks','Reed','Park','Lane','Finch','Silva','Bell','Patel','Stone','Vale','Wells'];
@@ -24,9 +27,10 @@
     if(!p.fullName)p.fullName=p.name.includes(' ')?p.name:p.name+' '+(isFamily(p)?l.name.split(' ').slice(1).join(' ')||pick(surnames,7):pick(surnames,9));
     if(p.generosity===undefined)p.generosity=12+h%83;
     if(p.craziness===undefined)p.craziness=Math.floor(h/19)%100;
-    if(p.wealth===undefined)p.wealth=ageOf(l,p)>=18?2000+Math.floor(h/37)%115000:0;
+    const historicalJob=historical(l)&&ageOf(l,p)>=18?economy().npcJob(l,h,p.town||l.town):null;
+    if(p.wealth===undefined)p.wealth=historicalJob?Math.round(historicalJob.annual*(.18+h%240/100)):ageOf(l,p)>=18?2000+Math.floor(h/37)%115000:0;
     if(!p.traits)p.traits=[pick(traits,17),pick(traits,283)].filter((x,i,a)=>a.indexOf(x)===i);
-    if(!p.job)p.job=ageOf(l,p)>=65?'Retired':ageOf(l,p)>=18?pick(adultJobs,43):ageOf(l,p)>=5?'Student':'At home';
+    if(!p.job)p.job=ageOf(l,p)>=65?'Retired':ageOf(l,p)>=18?(historicalJob?historicalJob.title:pick(adultJobs,43)):ageOf(l,p)>=5?'Student':'At home';
     return p;
   }
   function people(l){for(const [k,p] of Object.entries(l.people))person(l,k,p);}
@@ -58,6 +62,16 @@
     people(l);
   }
   function school(l){
+    if(historical(l)){
+      const year=l.born+l.age;
+      if(year<1900){
+        if(l.age<5)return {level:'Early childhood',name:null};
+        if(l.age>=18||l.sim.dropped)return {level:l.world.credential||'Household education',name:null};
+        if(l.age<11)return {level:'Household education',name:'Household lessons'};
+        return {level:'Practical education',name:l.age<14?'Local lessons':'Trade instruction'};
+      }
+      if(l.age>=5&&l.age<18&&!l.sim.dropped)return {level:l.age<12?'Primary school':'Secondary school',name:l.age<12?'Local primary school':'Local secondary school'};
+    }
     if(l.sim.program)return {level:'University',name:['law','medicine'].includes(l.sim.program.field)?'Graduate school':'City University'};
     if(l.age<5)return {level:'Early childhood',name:null};
     if(l.age>=18||l.sim.dropped)return {level:l.sim.professional||l.sim.degree||(!l.sim.dropped?'High school diploma':'Left school'),name:null};
@@ -87,12 +101,14 @@
   function view(l,world,sim,jobs){
     const schoolInfo=school(l),s=l.sim,w=l.world,names=l.name.split(/\s+/),place=sim.geography.cities[l.town];
     const b=sim.budget(l),minor=l.age<18,shift=minor&&world.parts[w.partJob],job=l.job&&jobs[l.job];
+    const periodShift=minor&&s.timeline?.youthShift;
     const employer=world.openings[l.job]?world.openings[l.job][0]:({clerk:'Corner Shop',trainee:'Town Workshop',parttime:'Community Center'}[l.job]||null);
-    return {id:l.id,firstName:names[0],lastName:names.slice(1).join(' '),gender:s.identity,country:sim.geography.stateCountry(l.town),city:place.name,age:l.age,alive:!l.ended,causeOfDeath:s.cause||null,
+    const historicalPlace=historical(l)?(node?require('./history-world.js').PocketHistoryWorld:root.PocketHistoryWorld).place(l.town,l.born+l.age):null;
+    return {id:l.id,firstName:names[0],lastName:names.slice(1).join(' '),gender:s.identity,country:historicalPlace?historicalPlace.country:sim.geography.stateCountry(l.town),city:historicalPlace?historicalPlace.city:place.name,age:l.age,alive:!l.ended,causeOfDeath:s.cause||null,
       bankBalance:l.cash,debt:sim.debt(l),monthlyExpenses:Math.round((b.living+b.housing+b.dependents+b.upkeep+b.payment+(b.insurance||0)+(b.management||0)+(b.lifestyle||0)+(b.operatingLoss||0))/12),netWorth:world.netWorth(l),
       stats:{happiness:l.stats.joy,health:l.stats.health,smarts:l.stats.smarts,looks:l.stats.looks},hiddenStats:{...l.hidden},
       educationLevel:schoolInfo.level,currentSchool:schoolInfo.name,major:s.program?s.program.field:s.degree,gpa:Math.round(w.grade*4)/100,schoolActivities:s.activities,
-      jobTitle:shift?shift[0]:job?job[0]:null,employer:shift?world.partEmployers[w.partJob]:(s.expansion?.employer||employer),salary:b.wages,jobPerformance:w.performance,yearsAtJob:shift?Math.max(0,l.age-w.partSince):job&&!['student','retired'].includes(l.job)?Math.max(0,l.age-w.since):0,retired:l.job==='retired',
+      jobTitle:periodShift?economy().shiftName(l):shift?shift[0]:job?job[0]:null,employer:periodShift?'Local household':shift?world.partEmployers[w.partJob]:(s.expansion?.employer||employer),salary:b.wages,jobPerformance:w.performance,yearsAtJob:shift?Math.max(0,l.age-w.partSince):job&&!['student','retired'].includes(l.job)?Math.max(0,l.age-w.since):0,retired:l.job==='retired',
       criminalRecord:s.offenses,inPrison:s.prison>0,prisonSentenceYears:s.prison,illnesses:s.illnesses,injuries:s.injuries,addictions:s.addictions,lifeTags:s.lifeTags,
       npcs:Object.entries(l.people).map(([k,p])=>npc(l,k,p))};
   }

@@ -48,11 +48,26 @@
   });
   const geography=typeof module!=='undefined'&&module.exports?require('./geography.js').PocketGeography:root.PocketGeography;
   const places=geography.places;
+  const node=typeof module!=='undefined'&&module.exports;
+  const era=node?require('./history-economy.js').PocketHistoryEconomy:root.PocketHistoryEconomy;
+  const historicWorld=node?require('./history-world.js').PocketHistoryWorld:root.PocketHistoryWorld;
+  const sharedGroups=new Set(['company','family','money','pets','custody']);
+  function periodAllows(l,a){
+    if(!l.sim.timeline?.historicalRules)return true;
+    if(a.group==='fame'&&l.born+l.age<2004)return false;
+    if(era.historical(l)&&a.group==='crime')return ['pickpocket','burglary','theft'].includes(a.id);
+    return !era.historical(l)||sharedGroups.has(a.group);
+  }
   const movingFee=1800;
   const identities={woman:'Woman',man:'Man',nonbinary:'Nonbinary'};
   const money=n=>(n<0?'−$':'$')+Math.abs(n).toLocaleString('en-US');
   function create(api){
     const {world,jobs,random,rngItem,apply,log,actionReason,cleanName,clamp}=api;
+    function breeds(l,type){
+      const options=petBreeds[type]||[];
+      if(!era.historical(l))return options;
+      return options.slice(0,1);
+    }
     function initialize(l){
       if(l.sim)return;
       // Existing saves acquire the new fields without consuming a random draw or changing their history.
@@ -174,7 +189,7 @@
       const taken=Object.values(l.people).map(p=>p.name),available=names.filter(n=>!taken.includes(n));
       const name=rngItem(l,available.length?available:names.map(n=>n+' Lee').filter(n=>!taken.includes(n))),id='friend-'+l.age;
       l.people[id]={name,role:'Friend',met:true,active:true,bond:52,bornYear:l.born};
-      return finish(l,'friend','People','Became friends with '+name,'I exchanged numbers and made plans for next week.',{joy:4,bonds:3});
+      return finish(l,'friend','People','Became friends with '+name,era.historical(l)?'We agreed to meet next week.':'I exchanged numbers and made plans for next week.',{joy:4,bonds:3});
     },l=>l.age<5?'Opens at 5':Object.values(l.people).filter(p=>p.role==='Friend'&&p.active).length>=6?'Your circle is full':'');
     add('baby','family','Try for a baby','baby','If your family is expecting, the baby arrives on your next birthday.',(l,input)=>{
       if(random(l)<Math.max(.1,.38+l.hidden.fertility*.005-Math.max(0,l.age-42)*.012)){
@@ -186,16 +201,16 @@
     for(const type of ['cat','dog']){
       add('pet-'+type,'pets','Adopt a '+type,type,'Choose a breed. Adoption costs $80 and yearly care costs $95.',(l,input)=>{
         const choice=typeof input==='string'||input===undefined?{name:input,breed:petBreeds[type][0]}:input;
-        if(!choice||!petBreeds[type].includes(choice.breed)||(choice.name!==undefined&&typeof choice.name!=='string'))return null;
+        if(!choice||!breeds(l,type).includes(choice.breed)||(choice.name!==undefined&&typeof choice.name!=='string'))return null;
         const name=cleanName(choice.name)||(type==='cat'?'Olive':'Pepper');
         l.sim.pet={type,name,breed:choice.breed,years:0,lifespan:10+Math.floor(random(l)*8)};
         const text='I brought home '+name+' ('+choice.breed+'). '+(type==='dog'?'The welcome mat lasted an hour.':'The cat kept the box the bed came in.');
         return finish(l,'pet-'+type,'Family','Adopted '+name,text,{cash:-80,joy:7});
-      },l=>l.age<18?'Opens at 18':l.sim.pet?'One pet at a time':l.cash<80?'Needs $80':'');
+      },l=>l.age<18?'Opens at 18':l.sim.pet?'One pet at a time':l.cash<80?'Needs '+era.money(l,80):'');
     }
     add('record-pet-breed','pets','Choose your pet’s breed','pencil','Add the breed to your existing pet’s record.',(l,breed)=>{
       const pet=l.sim.pet;
-      if(!petBreeds[pet.type].includes(breed))return null;
+      if(!breeds(l,pet.type).includes(breed))return null;
       pet.breed=breed;
       return finish(l,'record-pet-breed','Family','Updated '+pet.name+'’s record',pet.name+' is listed as '+breed+' on the paperwork.');
     },l=>!l.sim.pet?'Adopt a pet first':l.sim.pet.breed?'Breed already recorded':'');
@@ -216,12 +231,14 @@
     for(const [id,o] of Object.entries(offences)){
       add(id,'crime',o.name,o.icon,'Risk a court hearing, a fine or a sentence.',l=>{
         const idTag='crime-'+id;M.tag(l,idTag);
+        const scale=era.historical(l)?era.profile(l).food*era.profile(l).cost/7500:1;
         apply(l,{karma:-5,notoriety:4,craziness:2});
         if(random(l)<Math.min(.95,o.chance+l.hidden.notoriety*.0015)){
-          l.sim.court={id,term:o.term,fine:o.fine};
+          l.sim.court={id,term:o.term,fine:Math.max(1,Math.round(o.fine*scale))};
           return finish(l,id,'Justice','Summoned to court','I must answer a charge before my next birthday.',{joy:-5},{reputation:-7});
         }
-        return finish(l,id,'Justice','Took a risk','I came away with '+money(o.reward)+'. I kept the money.',{cash:o.reward,joy:-2});
+        const reward=Math.round(o.reward*scale);
+        return finish(l,id,'Justice','Took a risk','I came away with '+era.money(l,reward)+'. I kept the money.',{cash:reward,joy:-2});
       },l=>l.age<18?'Opens at 18':l.sim.court?'Hearing pending':!l.event.resolved?'Answer your current decision first':'');
     }
     add('library','custody','Use the prison library','book','Read and work toward your return home.',l=>
@@ -240,14 +257,15 @@
     extraActivities.install({add,finish,random,world,jobs,dependence:api.dependence});
     function reason(l,id){
       const a=actions[id];if(!a||l.ended)return 'Life complete';
+      if(!periodAllows(l,a))return 'Unavailable in this period';
       if(a.group==='custody'&&!l.sim.prison)return 'Only available in custody';
       if(l.sim.prison && a.group!=='custody' && id!=='doctor')return 'In custody';
       if(l.sim.court)return 'Hearing pending';
       return (a.rule&&a.rule(l))||actionReason(l,'sim-'+id);
     }
     function options(l,group){
-      return Object.values(actions).filter(a=>a.group===group&&(a.id!=='record-pet-breed'||l.sim.pet&&!l.sim.pet.breed))
-        .map(a=>({id:a.id,title:a.title,icon:a.icon,desc:a.desc,reason:reason(l,a.id)}));
+      return Object.values(actions).filter(a=>a.group===group&&periodAllows(l,a)&&(a.id!=='record-pet-breed'||l.sim.pet&&!l.sim.pet.breed))
+        .map(a=>({id:a.id,title:a.title,icon:a.icon,desc:era.historical(l)&&a.id.startsWith('pet-')?'Local companion · '+era.money(l,80)+' to adopt.':a.desc,reason:reason(l,a.id)}));
     }
     function fundingReason(l,id,method){
       if(!id.startsWith('course-')||!['loan','cash','scholarship'].includes(method))return 'Unavailable';
@@ -273,10 +291,10 @@
         l.sim.record++;M.tag(l,'convicted');l.sim.prison=years;l.sim.appealed=false;
         const paid=Math.min(l.cash,c.fine);if(paid<c.fine)addLoan(l,'fines',c.fine-paid,3);
         effects={cash:-paid,joy:-6};title=years?'Sentenced in court':'Released with a fine';
-        text='The court ordered a '+money(c.fine)+' fine'+(years?' and '+years+' '+(years===1?'year':'years')+' in custody.':'.');
+        text='The court ordered a '+era.money(l,c.fine)+' fine'+(years?' and '+years+' '+(years===1?'year':'years')+' in custody.':'.');
         if(years){if(l.sim.program)l.sim.program=null;world.changeJob(l,null,true);}
       }
-      if(plea==='counsel'){const fee=Math.min(120,Math.max(0,l.cash+(effects.cash||0)));effects.cash=(effects.cash||0)-fee;if(fee<120)addLoan(l,'fines',120-fee,3);text+=' My lawyer billed $120.';}
+      if(plea==='counsel'){const fee=Math.min(120,Math.max(0,l.cash+(effects.cash||0)));effects.cash=(effects.cash||0)-fee;if(fee<120)addLoan(l,'fines',120-fee,3);text+=' My representative billed '+era.money(l,120)+'.';}
       l.sim.offenses.push({offense:actions[c.id].title,age:l.age,verdict:guilty?'Convicted':'Acquitted',fine:guilty?c.fine:0,sentence:years});
       api.campus(l);const result=finish(l,'hearing','Justice',title,text,effects);result.delta=M.diff(before,M.metrics(l,world.netWorth,budget));l.log[l.log.length-1].delta=result.delta;l.sim.review={...result,from:'court'};return result;
     }
@@ -293,7 +311,7 @@
       if(s.expecting){
         const baby=s.expecting,key='kid'+(++l.world.childCount);s.expecting=null;
         l.people[key]={name:baby.name,role:'Child',bond:78,active:true,met:true,bornAt:l.age,birthTown:l.town,otherParent:baby.parent,...(baby.parentId?{otherParentId:baby.parentId,town:l.town}:{})};
-        world.schedule(l,'first-curtain',5,key);log(l,'Family','Welcomed '+baby.name,'The baby arrived. Nobody slept.');
+        if(!era.historical(l))world.schedule(l,'first-curtain',5,key);log(l,'Family','Welcomed '+baby.name,'The baby arrived. Nobody slept.');
       }
       if(s.pet&&++s.pet.years>=s.pet.lifespan){
         const p=s.pet;
@@ -302,6 +320,7 @@
       }
     }
     function licenseReason(l){
+      if(era.historical(l))return 'Use the period transport market';
       if(l.age<16)return 'Opens at 16';
       if(l.sim.license)return 'License earned';
       return actionReason(l,'license',l.age<18?0:30);
@@ -319,6 +338,7 @@
       log(l,'Milestone',title,text,delta);return {title,text,delta};
     }
     function moveReason(l,town){
+      if(era.historical(l))return historicWorld.quote(l,town).reason||actionReason(l,'relocate');
       if(l.age<18)return 'Opens at 18';
       if(!geography.cities[town])return 'Unknown destination';
       if(l.town===town)return 'Current home';
@@ -343,6 +363,11 @@
     }
     function relocate(l,town){
       if(moveReason(l,town))return null;
+      if(era.historical(l)){
+        const moved=historicWorld.move(l,town,{apply,log,blocking:api.blocking,campus:api.campus,ownedItem:world.shopping.ownedItem});
+        if(moved)api.arrived(l);
+        return moved;
+      }
       const from=l.town,abroad=geography.international(from,town);
       for(const [,child] of children(l))if(!child.birthTown)child.birthTown=childBirthplace(l,child);
       for(const [id,asset] of Object.entries(l.world.owned)){
@@ -351,7 +376,7 @@
       }
       if(!l.sim.residences)l.sim.residences=[];
       l.sim.residences.push({age:l.age,from,to:town});
-      api.moved(l,from,town);l.town=town;if(l.sim.expansion?.family[l.id])l.sim.expansion.family[l.id].town=town;api.campus(l);l.used.push('relocate');
+      api.moved(l,from,town);l.town=town;api.arrived(l);if(l.sim.expansion?.family[l.id])l.sim.expansion.family[l.id].town=town;api.campus(l);l.used.push('relocate');
       const destination=geography.label(town),title=(abroad?'Immigrated to ':'Moved to ')+destination;
       const text='I moved from '+geography.label(from)+' to '+destination+'. Moving cost '+money(movingFee)+'.';
       const delta=apply(l,{cash:-movingFee,joy:4});
@@ -371,7 +396,7 @@
       if(children(l).length>=3)return 'Heart of the family';
       return null;
     }
-    return {initialize,populateFamily,majors,programs,places,geography,movingFee,childBirthplace,identities,petBreeds,children,debt,ageOf,fundingReason,budget,settle,mortgageReason,mortgage,startCourse,addLoan,estate,tax,downPayment,licenseReason,drivingTest,takeTest,moveReason,relocate,actions,options,reason,perform,court,birthday,setWill,share,ribbon,money};
+    return {initialize,populateFamily,majors,programs,places,geography,movingFee,childBirthplace,identities,petBreeds,breeds,children,debt,ageOf,fundingReason,budget,settle,mortgageReason,mortgage,startCourse,addLoan,estate,tax,downPayment,licenseReason,drivingTest,takeTest,moveReason,relocate,actions,options,reason,perform,court,birthday,setWill,share,ribbon,money};
   }
   root.PocketSystems={create,places,identities};
 })(typeof module!=='undefined'&&module.exports?module.exports:window);

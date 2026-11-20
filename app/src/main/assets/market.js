@@ -4,6 +4,7 @@
   const PocketExpansionData=typeof module!=='undefined'&&module.exports?require('./expansion-data.js').PocketExpansionData:root.PocketExpansionData;
   const PocketEconomy=typeof module!=='undefined'&&module.exports?require('./economy.js').PocketEconomy:root.PocketEconomy;
   const M=typeof module!=='undefined'&&module.exports?require('./model.js').PocketModel:root.PocketModel;
+  const H=typeof module!=='undefined'&&module.exports?require('./history-economy.js').PocketHistoryEconomy:root.PocketHistoryEconomy;
   const equipment={
     bike:{name:'City bicycle',category:'Equipment',icon:'bike',price:110,age:8,resale:.68,change:-.04,detail:'Ride the greenway as a yearly activity.'},
     camera:{name:'Film camera',category:'Equipment',icon:'camera',price:260,age:12,resale:.78,change:-.02,detail:'Practice taking portraits. Paid sessions open at 18.'},
@@ -98,6 +99,8 @@
   Object.assign(catalog.luxury,{resale:.87,change:-.09,detail:'Heated seats. Very expensive tires.'});
   const streets=['Alder Lane','Cedar Street','Maple Terrace','Station Road','Pear Tree Lane','Willow Drive','Mill Road','Linden Court','East Hill','Orchard Way','Market Street','Ivy Place','River Road','Elm Street','Bay View','West Avenue'];
   const productionYears={woodie:[1932,1953],bubble:[1953,1972],classicgt:[1957,1984],pony:[1964,1979],prewar:[1920,1939],rally:[1973,1995],oldtruck:[1946,1979],classicspyder:[1953,1976]};
+  // First modeled sales years for newer production lines. Vintage vehicles retain their actual model years.
+  const technologyYears={hybrid:1997,evhatch:2010,evsuv:2015,electrictruck:2020,evsport:2008,electricbike:2008,hyperhybrid:2013,electricgt:2015,luxsuv:2002};
   const colors=['black','red','forest green','pearl white','blue','silver','navy','copper','charcoal','yellow'];
   function byDraw(keys,seed){
     return keys.map(key=>[M.hash(seed+'/'+key),key]).sort((a,b)=>a[0]-b[0]||a[1].localeCompare(b[1])).map(pair=>pair[1]);
@@ -124,6 +127,7 @@
       const usedLot=shop==='corner',brandNew=shop!=='chrome'&&!usedLot&&type!=='van'&&draw('new',4)===0;
       const era=productionYears[type],age=brandNew?0:usedLot?5+draw('years',16):1+draw('years',type==='van'?16:9);
       listing.modelYear=era?Math.min(year-25,era[0]+draw('vintage',era[1]-era[0]+1)):year-age;
+      if(H.enabled(life)&&technologyYears[type])listing.modelYear=Math.max(technologyYears[type],listing.modelYear);
       const yearsOld=year-listing.modelYear;
       listing.miles=brandNew?draw('delivery',35):yearsOld*(era?450+draw('annual',1800):4700+draw('annual',7600))+draw('extra',3500);
       listing.condition=brandNew?100:Math.max(29,Math.min(98,99-Math.round(listing.miles/3900)-draw('wear',12)));
@@ -141,10 +145,13 @@
   }
   function inventory(life,shop){
     const info=shops[shop];
+    if(H.historical(life))return [];
     if(!Object.prototype.hasOwnProperty.call(shops,shop)||life.age<info.age||life.ended)return [];
     const rows=(homes[shop]||cars[shop]),seed=life.id+localScope(life,info.category)+'/'+shop;
     const zone=life.sim.expansion?'/'+life.town:'';
-    const order=byDraw(rows.map(row=>row[0]),seed+zone);
+    const typesAvailable=rows.map(row=>row[0]).filter(type=>!H.enabled(life)||!technologyYears[type]||life.born+life.age>=technologyYears[type]);
+    if(!typesAvailable.length)return [];
+    const order=byDraw(typesAvailable,seed+zone);
     // Adjacent years each have an exclusive type. The other two positions vary independently.
     const position=life.age%order.length,anchor=order[position],last=order[(position+order.length-1)%order.length],next=order[(position+1)%order.length];
     const alternatives=order.filter(type=>type!==anchor&&type!==last&&type!==next);
@@ -155,6 +162,7 @@
       .sort((a,b)=>a.price-b.price);
   }
   function gear(life){
+    if(H.historical(life))return [];
     return Object.entries(equipment).filter(([id,item])=>life.age>=item.age&&!life.world.owned[id]&&!life.ended)
       .map(([id,item])=>({...item,id,type:id}));
   }
@@ -181,7 +189,7 @@
     life.world.owned[item.id]=asset;
   }
   function title(item){
-    if(!item.listing)return item.name;
+    if(!item.listing||item.historical)return item.name;
     return item.category==='Property'?item.name+' at '+item.address:item.modelYear+' '+item.model;
   }
   function inSentence(item){
@@ -189,6 +197,7 @@
     return 'the '+item.name.toLowerCase()+(item.address?' at '+item.address:'');
   }
   function summary(item,asset){
+    if(item.historical)return item.name+' · acquired '+item.listedYear+' · '+(asset?asset.condition:item.condition)+'% condition';
     if(!item.listing)return item.detail||item.name;
     if(item.category==='Property'){
       if(item.commercial)return item.address+' · '+item.floorArea.toLocaleString('en-US')+' m² commercial space';

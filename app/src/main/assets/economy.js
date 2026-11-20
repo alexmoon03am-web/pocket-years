@@ -3,6 +3,7 @@
   'use strict';
   const M=typeof module!=='undefined'&&module.exports?require('./model.js').PocketModel:root.PocketModel;
   const G=typeof module!=='undefined'&&module.exports?require('./geography.js').PocketGeography:root.PocketGeography;
+  const H=typeof module!=='undefined'&&module.exports?require('./history-economy.js').PocketHistoryEconomy:root.PocketHistoryEconomy;
   const groups=[
     ['US CA AU NZ DE GB FR NL BE AT SE DK NO FI IE CH IS LU JP KR SG HK MO QA AE IL',1.12,1.10],
     ['ES PT IT SI CZ EE MT CY SA BH KW OM TW PL SK LT LV GR',.90,.91],
@@ -28,7 +29,7 @@
   }
   function local(l,town=l.town,age=l.age){
     const year=l.born+age,city=G.cities[town],code=city.code,x=l.sim.expansion;
-    const seed=x?x.seed:l.id,cacheKey=[seed,town,year].join('/');
+    const seed=x?x.seed:l.id,cacheKey=[seed,town,year,H.enabled(l)?'historical':'standard'].join('/');
     if(cache.has(cacheKey))return cache.get(cacheKey);
     const group=groups.find(g=>g[0].split(' ').includes(code)),national=sample(code,'wages');
     const wages=(group?group[1]:.72)+national*.16,expenses=(group?group[2]:.77)+sample(code,'living')*.15;
@@ -46,10 +47,20 @@
       tax:.71+sample(code,'tax')*.60+(sample(town,'localTax')-.5)*.09,unemployment:bound(.065-cycle*.043-change*.24+(1-wages)*.035+(sample(town,'localJobs')-.5)*.011,.018,.18),
       rate:bound(.048+cycle*.017+(1-wages)*.019,.021,.11),yield:bound(.034+cycle*.031,.002,.083),
       inflation,appreciation:cycle*.061+inflation-.015+change*.29};
+    if(H.enabled(l)){
+      const fx=H.marketEffects(l,town,year);
+      profile.pay*=fx.pay;profile.cost*=fx.cost;profile.home*=fx.home;profile.vehicle*=fx.travel;
+      profile.appreciation+=Math.max(-.05,Math.min(.05,(fx.home-1)*.18));
+    }
     if(cache.size>1800)cache.clear();cache.set(cacheKey,profile);return profile;
   }
   function salary(l,job,jobs,age=l.age){
     if(!job||!jobs[job])return 0;
+    if(job.startsWith('faith-')){
+      const faith=typeof module!=='undefined'&&module.exports?require('./faith-personal.js').PocketFaithPersonal:root.PocketFaithPersonal;
+      return faith.wage(l,job,age);
+    }
+    if(H.jobs[job])return H.wage(l,job,age);
     const base=jobs[job][1]+(job===l.job?l.extraPay:0);
     return !l.sim.expansion||job==='retired'?base:Math.round(base*local(l,l.town,age).pay);
   }
