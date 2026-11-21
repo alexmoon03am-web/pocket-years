@@ -104,7 +104,7 @@
       const prior=l.sim.loans[id],balance=amount+(prior?prior.balance:0);
       l.sim.loans[id]={balance,principal:Math.ceil(balance/years)};
     }
-    const {budget,settle,hardshipOptions,relief,validateFinance,plan:estate,tax}=ledgerFactory.create(world,jobs,ageOf,{log,apply,blocking:api.blocking});
+    const {budget,settle,hardshipOptions,relief,reliefPreview,validateFinance,plan:estate,tax}=ledgerFactory.create(world,jobs,ageOf,{log,apply,blocking:api.blocking});
     function downPayment(item){return Math.ceil(item.price/5);}
     function borrowingCapacity(l,down=0){
       const b=budget(l),committed=Object.values(l.sim.loans).reduce((n,d)=>n+d.principal+Math.ceil(d.balance*(d.rate??.04)),0);
@@ -435,7 +435,7 @@
       if(children(l).length>=3)return 'Heart of the family';
       return null;
     }
-    return {initialize,populateFamily,majors,programs,places,geography,movingFee,moveFare,childBirthplace,identities,petBreeds,breeds,children,debt,ageOf,fundingReason,budget,settle,hardshipOptions,relief,validateFinance,borrowingCapacity,mortgageReason,mortgage,startCourse,addLoan,estate,tax,downPayment,licenseReason,licenseFee,drivingTest,takeTest,moveReason,relocate,actions,options,description,reason,perform,court,birthday,deliver,setWill,share,ribbon,money};
+    return {initialize,populateFamily,majors,programs,places,geography,movingFee,moveFare,childBirthplace,identities,petBreeds,breeds,children,debt,ageOf,fundingReason,budget,settle,hardshipOptions,relief,reliefPreview,validateFinance,borrowingCapacity,mortgageReason,mortgage,startCourse,addLoan,estate,tax,downPayment,licenseReason,licenseFee,drivingTest,takeTest,moveReason,relocate,actions,options,description,reason,perform,court,birthday,deliver,setWill,share,ribbon,money};
   }
   root.PocketSystems={create,places,identities};
 })(typeof module!=='undefined'&&module.exports?module.exports:window);

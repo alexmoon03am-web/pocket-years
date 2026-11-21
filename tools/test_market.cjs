@@ -84,7 +84,7 @@ assert.equal(S.mortgage(buyer,deed.id),null);assert.equal(W.trade(buyer,deed.id,
 assert(W.trade(buyer,car.id,'buy'));assert.equal(buyer.cash,money-S.downPayment(deed)-car.price);
 assert.equal(buyer.world.owned[car.id].odometer,car.miles);assert(E.actionList(buyer).some(x=>x[0]==='road'));
 const tape=save(buyer);assert.deepEqual(save(E.decodeGame(tape).active),tape);
-assert(S.budget(buyer).rent>0&&S.budget(buyer).upkeep>0&&!S.budget(buyer).housing);
+assert(S.budget(buyer).rent===0&&S.budget(buyer).upkeep>0&&!S.budget(buyer).housing);
 const peer=resume(buyer),unbought=stock[1],beforeOdometer=buyer.world.owned[car.id].odometer;
 assert(E.advance(buyer)&&E.advance(peer));settle(buyer);settle(peer);assert.deepEqual(save(peer),save(buyer));
 assert.equal(shop.offer(buyer,unbought.id),null);assert.equal(W.trade(buyer,unbought.id,'buy'),null);assert.equal(S.mortgage(buyer,unbought.id),null);
@@ -121,7 +121,7 @@ const legacy=older.active;
 assert.equal(shop.ownedItem('rowhouse',legacy.world.owned.rowhouse).name,'Brick row house');
 assert.equal(shop.ownedItem('van',legacy.world.owned.van).name,'Camper van');
 assert(E.actionList(legacy).some(i=>i[0]==='supper')&&E.actionList(legacy).some(i=>i[0]==='road'));
-assert.equal(S.budget(legacy).rent,2250);assert.equal(S.budget(legacy).housing,0);
+assert.equal(S.budget(legacy).rent,0);assert.equal(S.budget(legacy).housing,0);
 assert.equal(legacy.sim.loans.rowhouse.balance,102400);const olderWorth=W.netWorth(legacy);
 assert(W.trade(legacy,'rowhouse','sell'));assert.equal(W.netWorth(legacy),olderWorth);
 console.log('PASS 14 shops, 48 home types, 64 vehicle types, 128 fictional models, new and used inventory, ages, and guaranteed annual turnover.');

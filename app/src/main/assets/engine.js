@@ -386,14 +386,26 @@
     const best=Object.keys(statNames).reduce((a,b)=>life.stats[b]>life.stats[a]?b:a,'joy');
     return {joy:'Generally content',health:'Still had steps left',smarts:'Read the fine print',bonds:'People person',looks:'Well put together'}[best];
   }
+  function eligibleHeirs(parent){
+    const children=sim.children(parent);
+    if(children.length)return children;
+    // A sibling, cousin, niece or nephew is a branch continuation, not a child
+    // and not an automatic beneficiary of the deceased character's estate.
+    return Object.entries(parent.people).filter(([,p])=>p.met&&model.isAlive(p)&&
+      ['Sibling','Cousin','Niece','Nephew'].includes(p.role)&&sim.ageOf(parent,p)<=70&&
+      (!parent.sim.timeline?.historicalRules||p.bornYear>=1200));
+  }
   function continueAs(parent,key){
     const p=parent.people[key];
-    if(!parent.ended||parent.sim.successor||!p||!model.isAlive(p)||p.role!=='Child')return null;
+    if(!parent.ended||parent.sim.successor||!p||!eligibleHeirs(parent).some(([id])=>id===key))return null;
+    const direct=p.role==='Child';
     const age=sim.ageOf(parent,p);if(age===null||age<0)return null;
     const surname=parent.name.trim().split(/\s+/).slice(1).join(' ');
     const name=p.name.includes(' ')||!surname?p.name:p.name+' '+surname;
-    const portion=sim.estate(parent)[key]||{cash:0,loans:{},assets:{},total:0},inherited=portion.cash;
-    const child=makeLife({seed:(parent.rng^Math.imul(p.bornAt+1,2654435761)^key.charCodeAt(key.length-1))>>>0||1,
+    const portion=direct?(sim.estate(parent)[key]||{cash:0,loans:{},assets:{},total:0}):{cash:0,loans:{},assets:{},total:0};
+    const inherited=portion.cash;
+    const birthToken=Number.isInteger(p.bornAt)?p.bornAt+1:Number.isInteger(p.bornYear)?p.bornYear:age;
+    const child=makeLife({seed:(parent.rng^Math.imul(birthToken,2654435761)^model.hash(key))>>>0||1,
       name,town:p.town&&sim.geography.cities[p.town]?p.town:parent.town,skin:parent.skin,thread:parent.thread,successor:true});
     child.born=parent.born+parent.age-age;child.age=age;child.lifeSpan=Math.max(age+4,child.lifeSpan);
     if(parent.sim.timeline){
@@ -407,13 +419,17 @@
     if(parent.sim.chronicleWorld)child.sim.chronicleWorld=JSON.parse(JSON.stringify(parent.sim.chronicleWorld));
     child.id=p.id;child.name=p.fullName||child.name;child.sim.identity=p.gender||child.sim.identity;
     child.world.owned=portion.assets;child.sim.loans=portion.loans;for(const a of Object.values(child.world.owned))a.at=age;
-    child.sim.generation=parent.sim.generation+1;
-    child.sim.birthplace=sim.childBirthplace(parent,p);
-    child.sim.ancestors=parent.sim.ancestors.concat({name:parent.name,born:parent.born,died:parent.born+parent.age});
+    child.sim.generation=parent.sim.generation+(direct||['Niece','Nephew'].includes(p.role)?1:0);
+    child.sim.birthplace=direct?sim.childBirthplace(parent,p):p.birthTown||p.town||parent.town;
+    child.sim.ancestors=direct?parent.sim.ancestors.concat({name:parent.name,born:parent.born,died:parent.born+parent.age}):[];
     child.log=[];child.seen=[];child.keepsakes=[];child.event=null;
     const late={id:parent.id,fullName:parent.name,gender:parent.sim.identity,name:parent.name,role:'Parent',met:true,active:false,bond:p.bond,bornYear:parent.born,diedAt:age};
-    const coparent=expansion.kin.coparent(parent,p);
-    if(coparent){
+    const coparent=direct?expansion.kin.coparent(parent,p):null;
+    if(!direct){
+      // The original guardian generated with this relative is retained.
+      child.people.carer.role='Guardian';
+      child.people.carer.bornYear=child.born-29;
+    }else if(coparent){
       child.people.carer={...coparent,name:coparent.name,role:'Parent',met:true,active:coparent.diedAt===undefined,
         bond:67,bornYear:coparent.bornYear||parent.born};
       if(coparent.diedAt!==undefined)child.people.carer.diedAt=parent.born+coparent.diedAt-child.born;
@@ -426,10 +442,12 @@
     }else child.people.carer=late;
     child.people.friend.met=child.people.friend.active=age>=5;
     child.people.friend.bornYear=child.born;child.people.love.bornYear=child.born;
-    for(const [id,sibling] of sim.children(parent))if(id!==key)child.people['sibling-'+id]={...sibling,role:'Sibling',met:true,active:true,bond:55,bornYear:parent.born+sibling.bornAt};
+    if(direct)for(const [id,sibling] of sim.children(parent))if(id!==key)child.people['sibling-'+id]={...sibling,role:'Sibling',met:true,active:true,bond:55,bornYear:parent.born+sibling.bornAt};
     for(const member of Object.values(child.people))if(member.role==='Sibling')delete member.bornAt;
     if(age>=18){child.cash=inherited+(p.wealth||0);child.track='gap';}else child.sim.trust=inherited+(p.wealth||0);
-    log(child,'Family','A new generation','I am '+child.name+', age '+age+', the child of '+parent.name+'.');
+    log(child,'Family',direct?'A new generation':'A different family branch',direct?
+      'I am '+child.name+', age '+age+', the child of '+parent.name+'.':
+      'I am '+child.name+', age '+age+', '+p.role.toLowerCase()+' of '+parent.name+'. The family story continues without an automatic estate transfer.');
     if(inherited)log(child,'Family',age<18?'An inheritance in trust':'My inheritance',historyEconomy.money(child,inherited)+(age<18?' is held until my eighteenth birthday.':' was transferred from the estate.'),age<18?{}:{cash:inherited});
     child.event={id:null,resolved:true};expansion.inherit(parent,child,portion);
     if(age>=18&&p.career&&jobs[p.career]){world.changeJob(child,p.career,true);child.track='work';}
@@ -456,5 +474,5 @@
     if(!Number.isInteger(active.age)||!Number.isFinite(active.cash)||!Array.isArray(active.log))throw Error('Incomplete save');
     return {version:4,active,archive,settings:{motion:'system',...(data.settings||{})}};
   }
-  root.PocketEngine={faithEncounters,faithCatalog,faithPersonal,faithMovements,faithInstitutions,faithLegacy,faithCommunity,faithPerform,calendar,isHistorical,historyWorld,historyEconomy,historyDynasty,historyPerform,expansion,state,startNext,model,events,year,blocking,acknowledge,encodeGame,decodeGame,stories,statNames,towns,jobs,origins,households,world,sim,continueAs,migrate,makeLife,customizeBirth,copy,chapter,occupation,portrait,decide,advance,actionList,actionReason,act,visit,income,legacyTitle,cleanName,seed};
+  root.PocketEngine={faithEncounters,faithCatalog,faithPersonal,faithMovements,faithInstitutions,faithLegacy,faithCommunity,faithPerform,calendar,isHistorical,historyWorld,historyEconomy,historyDynasty,historyPerform,eligibleHeirs,expansion,state,startNext,model,events,year,blocking,acknowledge,encodeGame,decodeGame,stories,statNames,towns,jobs,origins,households,world,sim,continueAs,migrate,makeLife,customizeBirth,copy,chapter,occupation,portrait,decide,advance,actionList,actionReason,act,visit,income,legacyTitle,cleanName,seed};
 })(typeof module !== 'undefined' && module.exports ? module.exports : window);

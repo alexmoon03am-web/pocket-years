@@ -30,6 +30,22 @@
   const careerFaithLink=()=>row('sheet','faith-career','Religious vocations','Training, service and community leadership.','people');
   const earlier=()=>E.isHistorical(life);
   const future=()=>E.historyEconomy.isFuture(life);
+  const futureWords=()=>{
+    const y=E.calendar(life);
+    if(!future())return null;
+    if(y>=2500)return {property:'Legacy residences',vehicles:'Heritage vehicle collectors',match:'Local connection network',
+      fame:['Community signal network','Publish messages and build an audience in the local network.'],
+      nightlife:['Recreation & games','Social venues, games and chance-based entertainment.'],
+      travel:['Transit & relocation','Use current and heritage travel services to move cities.']};
+    if(y>=2150)return {property:'Habitat & heritage property',vehicles:'Classic transport dealers',match:'Local introduction network',
+      fame:['Public communications','Build an audience and arrange sponsorships.'],
+      nightlife:['Recreation & games','Venues, lotteries and other entertainment.'],
+      travel:['Transport & relocation','Licenses and travel between settlements.']};
+    return {property:'Property exchange',vehicles:'Vehicle collectors',match:'Connection network',
+      fame:['Digital communities','Share posts and build an audience.'],
+      nightlife:['Nightlife & games','Social venues, games and entertainment.'],
+      travel:['Travel & relocation','Licenses, city moves and immigration.']};
+  };
   const eraExtras=()=>!!life.sim.timeline?.historicalRules&&!earlier();
   const newEconomy=(area,title,desc)=>historicalUI.link(area,title,desc);
   function periodSchool(){
@@ -262,8 +278,9 @@
     html+=detail('Career highlight',career)+detail('Criminal record',l.sim.offenses.length?l.sim.offenses.map(x=>x.offense+' · '+x.verdict).join(' / '):'No offenses recorded.')+'<div class="epitaph">'+icon('flag')+'<span>Achievement ribbon</span><b>'+esc(E.legacyTitle(l))+'</b></div>';
     html+='<div class="legacy-line">'+l.turns+' decisions · '+cash(W.netWorth(l))+' net worth</div>';
     if(current&&l.ended){
-      html+=actionButton('sheet','legacy','Continue as your child','primary wide','people',kids.length?'':'Continue as child · No surviving children');
-      html+=actionButton('new-form','','Start a new custom life',kids.length?'secondary wide':'primary wide','pencil')+actionButton('random-life','','Start a random life','secondary wide','dice');
+      const heirs=E.eligibleHeirs(l),direct=kids.length>0;
+      html+=actionButton('sheet','legacy',direct?'Continue as your child':'Continue with family', 'primary wide','people',heirs.length?'':'No surviving eligible family member');
+      html+=actionButton('new-form','','Start a new custom life',heirs.length?'secondary wide':'primary wide','pencil')+actionButton('random-life','','Start a random life','secondary wide','dice');
     }
     return html+'</section>';
   }
@@ -320,8 +337,8 @@
     else if(E.historyEconomy.actions(life,'owned').length)html+=newEconomy('owned','Manage period holdings','Restore or sell inherited holdings.');
     if(!life.ended&&life.age>=8){
       let stores='';
-      if(life.age>=18)stores+=row('sheet','real-estate','Real estate','Apartments, houses, land and estates.','home');
-      if(life.age>=16)stores+=row('sheet','dealerships','Car dealerships','Shop by dealer and vehicle type.','car');
+      if(life.age>=18)stores+=row('sheet','real-estate',futureWords()?.property||'Real estate',future()?'Explore established residences and properties. New-era homes are in Future market.':'Apartments, houses, land and estates.','home');
+      if(life.age>=16)stores+=row('sheet','dealerships',futureWords()?.vehicles||'Car dealerships',future()?'Older road vehicles remain sought-after collectors’ items. For contemporary transport visit Future market.':'Shop by dealer and vehicle type.','car');
       stores+=row('sheet','gear-shop','Equipment','Bicycles, cameras and instruments.','tools');
       html+=subhead('Go shopping')+'<div class="commands">'+stores+'</div>';
     }
@@ -343,7 +360,7 @@
       const count=Shop.inventory(life,id).length;
       return row('sheet','store-'+id,shop.name,shop.focus,shop.icon,'',count+' listed');
     }).join('');
-    return {title:category==='Vehicle'?'Car dealerships':'Real estate agencies',tag:'Shopping · '+(life.born+life.age),
+    return {title:category==='Vehicle'?(futureWords()?.vehicles||'Car dealerships'):(futureWords()?.property||'Real estate agencies'),tag:'Shopping · '+(life.born+life.age),
       body:'<p class="sheet-intro">New listings arrive on your next birthday.</p><div class="commands">'+rows+'</div>'};
   }
   function parentSheet(tab,key){
@@ -429,7 +446,7 @@
     if(earlier())return periodActivities()+faithLink();
     const age=life.age,groups=life.sim.prison?['custody','health']:['leisure','health',...(age>=13&&(!life.sim.timeline?.historicalRules||E.calendar(life)>=2004)?['fame']:[]),...(age>=16?['travel']:[]),...(age>=18?['nightlife','pets','crime']:[])];
     return pageTitle('Activities','Choose how to spend the year.')+noteHtml()+(eraExtras()&&life.age>=4?newEconomy('activities',future()?'Future activities':'Digital life','Technology and leisure in your lifetime.'):'')+'<div class="commands">'+faithLink()+groups.map(hubRow).join('')+extra.link('world','Local economy','Prices and employment in '+G.cities[life.town].name+'.','world-index')+(age>=5&&!life.sim.prison?extra.link('hobbies','Hobbies & ambitions','Practice a skill or pursue a life goal.','sprout'):'')+
-      (!life.sim.prison?row('tab','people','Spend time with family','Choose a relative to visit.','people')+(!life.ended&&life.age>=18&&(!life.sim.timeline?.historicalRules||E.calendar(life)>=2009)?row('sheet','matches','Dating app','Browse three local profiles. An introduction costs '+cash(W.introductionCost)+'.','heart',W.isPartner(life)?'In a relationship':''):'')+
+      (!life.sim.prison?row('tab','people','Spend time with family','Choose a relative to visit.','people')+(!life.ended&&life.age>=18&&(!life.sim.timeline?.historicalRules||E.calendar(life)>=2009)?row('sheet','matches',futureWords()?.match||'Dating app','Browse three local profiles. An introduction costs '+cash(W.introductionCost)+'.','heart',W.isPartner(life)?'In a relationship':''):'')+
       (life.age<18?row('tab','school','Study or find a shift','School, clubs and teen work.','school'):''):'')+'</div>'+
       (life.age>=12?'<div class="social-summary after">'+meter('Reputation',life.world.reputation,'spark')+'</div>':'');
   }
@@ -595,7 +612,15 @@
   }
   function assetView(id,side){
     const own=life.world.owned[id],isBuy=side==='buy';
-    if(!isBuy&&own?.listing?.historical)return historicalUI.holding(life,id);
+    if(!isBuy&&own?.listing?.historical){
+      const view=historicalUI.holding(life,id);
+      const status=W.propertyUse(life,id);
+      if(view&&status){
+        view.body+=detail('Property use',status+' · '+cash(W.assetRent(life,id,own))+' in annual income.');
+        if(!life.ended&&life.age>=18)view.body+=extra.link('asset','Manage this asset','Occupancy, tenants and upkeep.','tools',id);
+      }
+      return view;
+    }
     const item=isBuy?Shop.offer(life,id):Shop.ownedItem(id,own);
     if(!item)return {title:isBuy?'Listing unavailable':'Item sold',body:detail('Off the market',isBuy?'This offer is no longer for sale. Open Assets to see the current listings.':'This item has left your possessions.')};
     const loan=life.sim.loans[id],resale=own?own.value-(loan?loan.balance:0):0;
@@ -604,11 +629,11 @@
     let body='<div class="price-card"><span>'+esc(isBuy?'Asking price':'Resale value')+'</span><strong>'+cash(isBuy?item.price:own.value)+'</strong></div>';
     if(item.listing&&property){
       body+=detail(item.address+(G.cities[item.town]?' · '+G.label(item.town):''),(item.commercial?item.floorArea+' m² commercial space':item.beds?item.beds+(item.beds===1?' bedroom':' bedrooms'):'Studio')+' · '+item.baths+(item.baths===1?' bathroom':' bathrooms')+' · Built in '+item.built)+
-        detail('Condition and rental income',condition+'% condition · '+cash(own?W.assetRent(life,id,own):Math.floor(item.rent*(condition<45?.6:1)))+' annual rental income at current condition.');
+        detail('Condition and rental income',condition+'% condition · '+(own?W.propertyUse(life,id)+' · ':'Potential rent with a tenant: ')+cash(own?W.assetRent(life,id,own):Math.floor(item.rent*(condition<45?.6:1)))+' annual rental income at current condition.');
     }else if(item.listing){
       body+=detail('Vehicle details',Shop.summary(item,own))+detail('Condition',condition+'% condition'+(isBuy?(item.newCar?' · New, with delivery mileage.':' · Used.'):'.'));
       if(item.type==='van')body+=detail('Camper van','Take road trips or host a camper supper.');
-    }else body+=detail(isBuy?'Ownership':'Acquired at age '+own.at,item.category==='Property'?'Current annual rent is '+cash(W.assetRent(life,id,own||{condition:100,share:1}))+'.':item.detail);
+    }else body+=detail(isBuy?'Ownership':'Acquired at age '+own.at,item.category==='Property'?(own?W.propertyUse(life,id)+' · '+cash(W.assetRent(life,id,own))+' in annual income.':'Potential rent with a tenant: '+cash(item.rent||0)+'.'):item.detail);
     body+=isBuy?detail('Initial resale value',cash(Math.round(item.price*item.resale))):appraisalDetail(life,id);
     if(own){
       if(property&&!item.listing&&G.cities[item.town])body+=detail('Property location',G.label(item.town));
@@ -641,9 +666,13 @@
   function option(o){
     return row(needsConfirm(o.id)?'sheet':'sim',needsConfirm(o.id)?'do-'+o.id:o.id,o.title,o.desc,o.icon,o.reason);
   }
-  function hubRow(id){const [title,desc,ic]=hubs[id];return row('sheet','hub-'+id,title,desc,ic);}
+  function hubLabel(id){
+    const words=futureWords();
+    return words&&words[id]?[...words[id],hubs[id][2]]:hubs[id];
+  }
+  function hubRow(id){const [title,desc,ic]=hubLabel(id);return row('sheet','hub-'+id,title,desc,ic);}
   function hubView(group){
-    const h=hubs[group];if(!h)return null;
+    const h=hubs[group]?hubLabel(group):null;if(!h)return null;
     if(earlier()&&!['pets','crime','custody'].includes(group))return null;
     if(group==='fame'&&life.sim.timeline?.historicalRules&&E.calendar(life)<2004)return null;
     if(group==='travel')return {title:h[0],body:detail('Current home',G.label(life.town))+'<div class="commands">'+
@@ -721,7 +750,7 @@
     const previous=Number.isInteger(b.year),age=previous?(b.earnedAge??Math.max(0,b.year-life.born-1)):life.age;
     const town=b.town||(previous?S.townAtAge(life,age):life.town);
     const amount=n=>E.historyEconomy.money(life,n,age,town);
-    const values=[['Salary or part-time wages',b.wages],['Pension',b.pension||0],['Side work',b.side||0],['Fund yield',b.yieldIncome||0],['Rental income',b.rent],['Business distributions',b.businessIncome||0],['Household support',b.support||0],['Business losses',-(b.operatingLoss||0)],['Insurance',-(b.insurance||0)],['Management fees',-(b.management||0)],['Lifestyle',-(b.lifestyle||0)],['Tax',-b.tax],['Rent',-(b.housing||0)],['Living costs',-b.living],['Dependent children',-b.dependents],['Property, vehicles and pets',-b.upkeep],['Loan payments',-b.payment],['New unpaid bills',b.arrears||0],['Costs left unmet',b.uncovered||0],['Change in bank balance',b.net]];
+    const values=[['Salary or part-time wages',b.wages],['Pension',b.pension||0],['Side work',b.side||0],['Fund yield',b.yieldIncome||0],['Rental income',b.rent],['Business distributions',b.businessIncome||0],['Household support',b.support||0],['Business losses',-(b.operatingLoss||0)],['Insurance',-(b.insurance||0)],['Management fees',-(b.management||0)],['Lifestyle',-(b.lifestyle||0)],['Tax',-b.tax],['Rent',-(b.housing||0)],['Living costs',-b.living],['Dependent children',-b.dependents],['Property, vehicles and pets',-b.upkeep],['Loan payments',-b.payment],['New unpaid bills',b.arrears||0],['Unpaid housing carried forward',b.housingArrears||0],['Costs left unmet',b.uncovered||0],['Change in bank balance',b.net]];
     const historic=life.sim.timeline?.historicalRules&&(life.born+age)<2000;
     const periodLabels={'Change in bank balance':'Change in cash','Property, vehicles and pets':'Upkeep','Salary or part-time wages':'Wages','Tax':'Taxes and dues','Business distributions':'Trading income'};
     const essential=['Salary or part-time wages','Tax','Living costs','Change in bank balance'];
@@ -730,8 +759,8 @@
   }
   function budgetView(){
     const s=life.sim,b=S.budget(life),last=s.lastBudget;
-    const loanName=id=>{const item=Shop.ownedItem(id,life.world.owned[id]);return item?Shop.title(item):({tuition:'Student loan',fines:'Court fine',living:'Unpaid bills'}[id]||'Loan');};
-    const loans=Object.entries(s.loans).map(([id,l])=>loanName(id)+' '+cash(l.balance)).join(' · ');
+    const loanName=id=>{const item=Shop.ownedItem(id,life.world.owned[id]);return item?Shop.title(item):({tuition:'Student loan',fines:'Court fine',living:'Unpaid bills','housing-arrears':'Housing arrears'}[id]||'Loan');};
+    const loans=Object.entries(s.loans).filter(([id])=>id!=='housing-arrears').map(([id,l])=>loanName(id)+' '+cash(l.balance)).join(' · ');
     let body=life.ended?'':subhead('Next birthday')+budgetLines(b);
     if(b.payments)body+=Object.entries(b.payments).map(([k,v])=>detail(loanName(k)+' payment',cash(v))).join('');
     if(!life.ended&&life.age>=18){
@@ -743,7 +772,9 @@
     if(last)body+=subhead('Last birthday · '+last.year)+budgetLines(last);
     if(s.expansion?.dispute)body+=detail('Inheritance held by executor',cash(s.expansion.dispute.amount)+' included in net worth until the dispute is settled.');
     if(s.trust)body+=detail('Held in trust',cash(s.trust)+' will transfer to your bank at age 18.');
-    if(loans)body+=detail('Outstanding balances',loans)+detail('Interest this year',cash(b.interest)+' is added before payments. Any unpaid interest remains in your balance.')+option(S.options(life,'money')[0]);
+    if(s.loans['housing-arrears'])body+=detail('Housing arrears',cash(s.loans['housing-arrears'].balance)+' in unpaid rent. No interest accrues on this balance.');
+    if(loans)body+=detail('Outstanding balances',loans);
+    if(Object.keys(s.loans).length)body+=detail('Interest this year',cash(b.interest)+' is added before payments. Any unpaid interest remains in your balance.')+option(S.options(life,'money')[0]);
     return {title:'Annual budget',body:body||detail('Estate',cash(W.netWorth(life)))};
   }
   function helpView(){
@@ -763,13 +794,20 @@
   }
   function heirsView(){
     if(!life.ended||life.sim.successor)return null;
-    return {title:'Continue your family',tag:'Generation '+(life.sim.generation+1),body:'<p class="sheet-intro">Choose the child whose life you want to play. This journal will move to Past lives.</p><div class="commands">'+S.children(life).map(([key,p])=>row('sheet','heir-'+key,p.name,'Age '+S.ageOf(life,p)+' · Estate share '+cash(S.share(life,key)),'people')).join('')+'</div>'};
+    const eligible=E.eligibleHeirs(life),direct=S.children(life).length>0;
+    return {title:'Continue your family',tag:'Family line',body:'<p class="sheet-intro">'+(direct?
+      'Choose a surviving child. Their estate share passes under your will.':
+      'You have no surviving children. Choose an existing sibling, cousin, niece or nephew to carry on a family branch. Your estate is not automatically transferred.')+
+      ' The completed life moves to Past lives.</p><div class="commands">'+eligible.map(([key,p])=>
+      row('sheet','heir-'+key,p.name,'Age '+S.ageOf(life,p)+(direct?' · Estate share '+cash(S.share(life,key)):' · '+p.role+' · Their own finances'),'people')).join('')+'</div>'};
   }
   function heirView(key){
-    const p=life.people[key];if(!p||!life.ended||life.sim.successor||!S.children(life).some(([k])=>k===key))return null;
-    const age=S.ageOf(life,p),part=S.estate(life)[key]||{cash:0,assets:{},total:0},names=Object.entries(part.assets).map(([id,asset])=>Shop.title(Shop.ownedItem(id,asset)));
-    return {title:'Play as '+p.name+'?',body:detail('Age '+age,cash(part.cash)+(age<18?' in trust until 18.':' in cash.')+(names.length?' Inherited assets: '+names.join(', ')+'.':''))+
-      '<div class="sheet-actions">'+actionButton('sheet','legacy','Choose another child','secondary','back')+actionButton('heir',key,'Continue as '+p.name,'primary','sprout')+'</div>'};
+    const p=life.people[key];if(!p||!life.ended||life.sim.successor||!E.eligibleHeirs(life).some(([k])=>k===key))return null;
+    const age=S.ageOf(life,p),direct=p.role==='Child',part=direct?S.estate(life)[key]||{cash:0,assets:{},total:0}:{cash:0,assets:{},total:0},names=Object.entries(part.assets).map(([id,asset])=>Shop.title(Shop.ownedItem(id,asset)));
+    return {title:'Play as '+p.name+'?',body:detail('Age '+age,direct?
+      cash(part.cash)+(age<18?' in trust until 18.':' in cash.')+(names.length?' Inherited assets: '+names.join(', ')+'.':''):
+      'This is your '+p.role.toLowerCase()+'. Their existing savings and family history continue, without automatic inheritance from the deceased character.')+
+      '<div class="sheet-actions">'+actionButton('sheet','legacy','Choose another relative','secondary','back')+actionButton('heir',key,'Continue as '+p.name,'primary','sprout')+'</div>'};
   }
   function courtView(){
     const c=life.sim.court;if(!c)return null;
@@ -882,7 +920,16 @@
       if(life.ended||life.age<18)return null;
       const choice=S.hardshipOptions(life).find(o=>o.id===key.slice(7));
       if(!choice)return null;
-      return {title:choice.title,tag:'Household finances',body:detail('Terms',choice.desc)+'<div class="sheet-actions">'+actionButton('sheet','household-help','Back','secondary','back')+actionButton('relief',choice.id,'Confirm','primary','check',choice.reason)+'</div>'};
+      const estimate=S.reliefPreview(life,choice.id);
+      let forecast='';
+      if(estimate){
+        const {before,after}=estimate;
+        const line=(label,a,b)=>detail(label,cash(a)+' → '+cash(b));
+        forecast=choice.id==='shared'?line('Next annual housing bill',before.housing,after.housing):
+          line('Next annual debt payments',before.payment,after.payment)+line('Next annual interest',before.interest,after.interest);
+        forecast+=line('New rent arrears next birthday',before.housingArrears||0,after.housingArrears||0);
+      }
+      return {title:choice.title,tag:'Household finances',body:detail('Terms',choice.desc)+forecast+'<div class="sheet-actions">'+actionButton('sheet','household-help','Back','secondary','back')+actionButton('relief',choice.id,'Confirm','primary','check',choice.reason)+'</div>'};
     }
     if(key==='realism')return realismView();
     if(key==='will'&&life.age>=18&&!life.ended)return willView();
@@ -895,7 +942,7 @@
       row('sheet','appearance','Journal appearance',game.settings.theme&&game.settings.theme!=='auto'?'Theme locked':'Follows the calendar','palette')+
       row('sheet','realism','Health & mortality',E.year.realism(life)==='historical'?'Historical mortality':'Guided mortality','heart')+
       row('sheet','motion','Motion settings',game.settings.motion==='reduced'?'Reduced motion':'Use device preference','phone')+
-      row('sheet','checkpoint','Save slots & backups','Switch lives, recover or transfer a save.','save')+row('sheet','help','How to play','Aging, choices and free time.','book')+(game.archive.length?row('sheet','archive','Past lives',game.archive.length+' saved','archive'):'')+'</div><p class="version">Pocket Years · v1.2</p>'};
+      row('sheet','checkpoint','Save slots & backups','Switch lives, recover or transfer a save.','save')+row('sheet','help','How to play','Aging, choices and free time.','book')+(game.archive.length?row('sheet','archive','Past lives',game.archive.length+' saved','archive'):'')+'</div><p class="version">Pocket Years · v1.2.1</p>'};
     if(key==='appearance'){
       const selected=game.settings.theme||'auto';
       const themes=[{id:'auto',name:'Follow the calendar',icon:'clock'},...eraUI.themes];
@@ -910,7 +957,7 @@
       detail('Spend your year','Open Occupation for school and work. Use the other dock buttons for assets, relationships and activities. Each choice shows when it can be used again. A part-time job is the only way to earn money before age 18.')+
       detail('Follow the consequences','Your school, workplace and family can bring you decisions. Tap a year beside its age to see the numbers.')+
       detail('World locations','City data adapted from Natural Earth and GeoNames. GeoNames is licensed under CC BY 4.0. Geographic sources and attribution are in Location credits.')+
-      actionButton('sheet','location-credits','Location credits','secondary wide','map')+detail('Continue your family','Use Assets to write a will. At the end of a life, choose a surviving child to play the next generation.')+
+      actionButton('sheet','location-credits','Location credits','secondary wide','map')+detail('Continue your family','Use Assets to write a will. At the end of a life, continue as a surviving child or, if none survives, an eligible relative.')+
       detail('Keep your story','Your progress saves on this device after each choice. Open Journal for your keepsakes and past lives.')};
     if(key==='location-credits')return {title:'Location credits',body:detail('Natural Earth','Public-domain populated places from naturalearthdata.com.')+
       detail('GeoNames','Place names adapted from GeoNames and the DataHub World Cities dataset. geonames.org · Creative Commons Attribution 4.0 · creativecommons.org/licenses/by/4.0/')+
@@ -927,7 +974,7 @@
     if(key.startsWith('buy-'))return assetView(key.slice(4),'buy');
     if(key.startsWith('sell-'))return assetView(key.slice(5),'sell');
     if(key.startsWith('person-'))return personView(key.slice(7));
-    if(key==='matches'&&life.age>=18&&!life.ended&&W.matches(life).length)return {title:'Dating app',body:'<div class="commands">'+W.matches(life).map((m,i)=>row('sheet','match-'+i,m.fullName,'Age '+m.age+' · '+m.job,'heart',W.matchReason(life,i))).join('')+'</div>'};
+    if(key==='matches'&&life.age>=18&&!life.ended&&W.matches(life).length)return {title:futureWords()?.match||'Dating app',body:'<div class="commands">'+W.matches(life).map((m,i)=>row('sheet','match-'+i,m.fullName,'Age '+m.age+' · '+m.job,'heart',W.matchReason(life,i))).join('')+'</div>'};
     if(/^match-[0-2]$/.test(key)&&life.age>=18&&W.matches(life).length){
       const i=Number(key.slice(6)),m=W.matches(life)[i];
       return {title:m.fullName,tag:'Dating profile',body:detail('Age '+m.age+' · '+m.job,'Describes themself as '+m.trait+'.')+actionButton('match',String(i),'Send introduction · '+cash(W.introductionCost),'primary wide','chat',W.matchReason(life,i))};

@@ -73,10 +73,7 @@
           taxes=Math.floor(tax(gross/basis)*basis*e.tax+Math.max(0,gross-20000*basis)*(period.tax-.17));
         }else taxes=Math.floor(period?gross*period.tax+Math.max(0,gross-period.food*9)*.055:tax(gross)*(e?e.tax:1));
       }
-      const hasLocalHome=Object.entries(w.owned).some(([id,a])=>{
-        const item=world.shopping.ownedItem(id,a);
-        return item.category==='Property'&&!item.commercial&&!a.tenant&&(!item.town||item.town===l.town);
-      });
+      const hasLocalHome=!!world.homeId(l);
       const home=household(l,earnedAge,period,e,gross,hasLocalHome);
       const {housing,living,dependents,support,creditLimit}=home;
       const upkeep=adult?Object.entries(w.owned).reduce((n,[id,a])=>{
@@ -123,10 +120,25 @@
         const bill=loans.living||{balance:0,principal:Math.max(100,round(creditLimit*.12))};
         bill.balance+=arrears;loans.living=bill;
       }
-      if(uncovered)warnings.push('The credit limit is reached. Some costs will go unmet.');
+      // Rent can remain owing when the local support system cannot cover the
+      // household. Only the housing share of unpaid essentials becomes debt;
+      // food is never billed retroactively. Never add interest to rent arrears.
+      const unpaidHousing=housing>0&&uncovered>0?
+        Math.floor(uncovered*housing/Math.max(1,housing+living+dependents)):0;
+      const existingHousing=loans['housing-arrears']?.balance||0;
+      const housingCap=Math.round(housing*2.3);
+      const housingArrears=Math.max(0,Math.min(unpaidHousing,housingCap-existingHousing));
+      if(housingArrears){
+        const bill=loans['housing-arrears']||{balance:0,principal:Math.max(100,Math.round(housingCap/10)),rate:0,misses:0};
+        bill.balance+=housingArrears;
+        loans['housing-arrears']=bill;
+        warnings.push('Unpaid housing charges will remain due until repaid or settled.');
+      }
+      const unmet=uncovered-housingArrears;
+      if(unmet)warnings.push('The credit limit is reached. Some essential costs will go unmet.');
       else if(arrears)warnings.push('Cash will run out. The remaining bills will use household credit.');
       if(foreclosures.length)warnings.push('A lender will sell collateral this year.');
-      return {wages,pension,side,rent,yieldIncome,gross,tax:taxes,...home,upkeep,interest,payment,payments,arrears,uncovered,foreclosures,warnings,net:available-l.cash,loans,...(x?{...recurring,businessIncome:company.income,operatingLoss:company.loss,businessRows:company.rows,skipped}: {})};
+      return {wages,pension,side,rent,yieldIncome,gross,tax:taxes,...home,upkeep,interest,payment,payments,arrears,housingArrears,uncovered:unmet,foreclosures,warnings,net:available-l.cash,loans,...(x?{...recurring,businessIncome:company.income,operatingLoss:company.loss,businessRows:company.rows,skipped}: {})};
     }
     function settle(l,earnedAge=l.age){
       const prior=l.sim.lastBudget,{loans,...b}=budget(l,earnedAge);l.cash+=b.net;l.sim.loans=loans;
@@ -134,18 +146,28 @@
         delete l.world.owned[f.id];
         log(l,'Assets','Collateral sold',f.name+' was sold after three missed payments. The lender took its share.');
       }
-      if(b.uncovered){
-        apply(l,{joy:-2});
-        if(!prior?.uncovered)log(l,'Money','Household credit exhausted','I had to cut back. The shops stopped putting things on my tab.');
-        if(b.upkeep)for(const a of Object.values(l.world.owned))a.condition=Math.max(10,(a.condition??80)-2);
-        if(l.sim.expansion&&b.lifestyle)l.sim.expansion.policies.lifestyle='Simple';
-      }else if(b.arrears&&!prior?.arrears)log(l,'Money','Bills came up short','I borrowed to cover the bills. The household accounts have repayment and support options.');
+      const f=l.sim.finance||(l.sim.finance={});
+      if(b.uncovered||b.housingArrears){
+        f.hardshipYears=Math.min(40,(f.hardshipYears||0)+1);
+        if(b.uncovered){
+          apply(l,{joy:-2,health:f.hardshipYears>=3?-1:0});
+          if(!prior?.uncovered)log(l,'Money','Household credit exhausted','I had to cut back. The shops stopped putting things on my tab.');
+          if(b.upkeep)for(const a of Object.values(l.world.owned))a.condition=Math.max(10,(a.condition??80)-2);
+          if(l.sim.expansion&&b.lifestyle)l.sim.expansion.policies.lifestyle='Simple';
+        }
+        if(b.housingArrears&&!prior?.housingArrears)log(l,'Money','Housing payments overdue','The part of my rent that nobody could cover became a repayable housing balance.');
+        if(f.hardshipYears===3)log(l,'Money','Housing instability','Repeated unpaid essentials left my household less secure. Finding stable work and housing matters.');
+      }else if(f.hardshipYears){
+        f.hardshipYears=Math.max(0,f.hardshipYears-2);
+        if(f.hardshipYears===0)log(l,'Money','Household stability restored','I have put the worst of the housing disruption behind me.');
+      }
+      if(!b.uncovered&&b.arrears&&!prior?.arrears)log(l,'Money','Bills came up short','I borrowed to cover the bills. The household accounts have repayment and support options.');
       l.sim.lastBudget={year:l.born+l.age,earnedAge,town:l.town,...b};return b;
     }
     function hardshipOptions(l){
       const f=l.sim.finance||{},b=budget(l),year=l.born+l.age,debts=Object.entries(l.sim.loans);
       const eligible=debts.filter(([id])=>eligibleLoan(l,id)),unsecured=eligible.reduce((n,[,d])=>n+d.balance,0);
-      const hardship=b.arrears||b.uncovered||b.skipped||unsecured>b.creditLimit*.50;
+      const hardship=b.arrears||b.housingArrears||b.uncovered||b.skipped||unsecured>b.creditLimit*.50;
       const reason=l.ended?'Life complete':blocking(l)?'Finish the current decision':l.age<18?'Opens at 18':l.sim.prison?'Unavailable in custody':'';
       const opts=[],offer=(id,title,desc,why)=>opts.push({id,title,desc,reason:reason||why||''});
       offer('essentials',f.essentials?'End the essentials budget':'Use an essentials budget',f.essentials?'Restore the usual grocery allowance.':'Buy basic groceries and reduce food costs by 24%.');
@@ -158,7 +180,7 @@
       offer('workout','Request a repayment plan','Spread eligible unsecured balances over eight years. Interest pauses for two years. Credit access is restricted.',!eligible.length?'No eligible unsecured debt':cooling?'Recent agreement remains in effect':!hardship?'Current payments are affordable':'');
       const candidate=eligible.filter(([id])=>id!=='tuition').sort((a,b)=>a[1].balance-b[1].balance)[0];
       const settlement=candidate?Math.ceil(candidate[1].balance*.7):0;
-      offer('negotiate','Negotiate a cash settlement',candidate?'Offer '+H.money(l,settlement)+' now to settle the '+candidate[0]+' balance.':'Offer a reduced lump sum to a household creditor.',!candidate?'No eligible settlement':!hardship?'Current payments are affordable':l.cash<settlement?'More cash needed for a settlement':'');
+      offer('negotiate','Negotiate a cash settlement',candidate?'Offer '+H.money(l,settlement)+' now to settle the '+(candidate[0]==='housing-arrears'?'housing arrears':candidate[0]==='living'?'household credit':candidate[0])+' balance.':'Offer a reduced lump sum to a household creditor.',!candidate?'No eligible settlement':!hardship?'Current payments are affordable':l.cash<settlement?'More cash needed for a settlement':'');
       const modern=year>=1900;
       if(modern)offer('bankruptcy','File for personal insolvency','Sell holdings, funds and businesses. Eligible balances are discharged. Fines and study loans remain. Credit closes for seven years.',
         year<(f.filedUntil||0)?'A recent filing remains on record':!eligible.some(([id])=>id!=='tuition')?'No dischargeable debt':world.netWorth(l)>=0?'The estate can cover its debts':unsecured<Math.max(600,b.creditLimit*.5)?'Seek a repayment plan first':'');
@@ -210,12 +232,20 @@
       if(l.cash!==opening)delta.cash=l.cash-opening;
       log(l,'Money',opt.title,text,delta);return {title:opt.title,text,delta};
     }
+    function reliefPreview(l,id){
+      if(!['shared','workout'].includes(id))return null;
+      const copy=JSON.parse(JSON.stringify(l));
+      if(!relief(copy,id))return null;
+      const before=budget(l), after=budget(copy);
+      return {before,after};
+    }
     function validateFinance(l){
       const f=l.sim.finance;
       if(f!==undefined){
         if(!f||typeof f!=='object'||Array.isArray(f))throw Error('Invalid household policy.');
         for(const key of ['essentials','shared'])if(f[key]!==undefined&&typeof f[key]!=='boolean')throw Error('Invalid household policy.');
         for(const key of ['aidUntil','creditUntil','workoutUntil','filedUntil'])if(f[key]!==undefined&&!Number.isSafeInteger(f[key]))throw Error('Invalid household agreement.');
+        if(f.hardshipYears!==undefined&&(!Number.isInteger(f.hardshipYears)||f.hardshipYears<0||f.hardshipYears>40))throw Error('Invalid hardship history.');
       }
       for(const d of Object.values(l.sim.loans)){
         if(!d||!Number.isFinite(d.balance)||d.balance<0||!Number.isFinite(d.principal)||d.principal<0)throw Error('Invalid loan balance.');
@@ -276,7 +306,7 @@
       });
       return plan;
     }
-    return {budget,settle,hardshipOptions,relief,validateFinance,plan,tax};
+    return {budget,settle,hardshipOptions,relief,reliefPreview,validateFinance,plan,tax};
   }
   root.PocketLedger={create};
 })(typeof module!=='undefined'&&module.exports?module.exports:window);

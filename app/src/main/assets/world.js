@@ -143,8 +143,19 @@
         Object.assign(asset,appraisal(life,id,life.age));
       }
     }
+    function homeId(life){
+      return Object.keys(life.world.owned).find(id=>{
+        const asset=life.world.owned[id], item=shopping.ownedItem(id,asset);
+        return item.category==='Property'&&!item.commercial&&!asset.tenant&&!asset.vacant&&(!item.town||item.town===life.town);
+      });
+    }
+    function propertyUse(life,id){
+      const asset=life.world.owned[id], item=shopping.ownedItem(id,asset);
+      if(!asset||item.category!=='Property')return '';
+      return asset.tenant?'Rented out':homeId(life)===id?'Live here':item.commercial&&!asset.vacant?'Operating':'Vacant';
+    }
     function assetRent(life,id,asset,age=life.age){
-      const item=shopping.ownedItem(id,asset);if(!item.rent||asset.vacant)return 0;
+      const item=shopping.ownedItem(id,asset);if(!item.rent||asset.vacant||(item.category==='Property'&&!item.commercial&&!asset.tenant))return 0;
       const index=item.rentIndex?PocketEconomy.local(life,item.town||life.town,age).cost/item.rentIndex:
         item.historical?periodAssetIndex(life,item,age,'cost')/periodAssetIndex(life,item,item.listedYear-life.born,'cost'):1;
       return Math.floor(item.rent*(asset.share||1)*(asset.condition<45?.6:1)*(asset.tenant?1.38:1)*(1+(asset.renovations||0)*.13)*index);
@@ -544,7 +555,7 @@
       const result=commit(life,used,'People',title,text,delta,progress);
       result.closeness=closeness;return result;
     }
-    return {initialize,familyCost,market,shopping,openings,parts,partEmployers,setShift,transferEmployer,schedule,nextEvent,metrics,changeJob,birthday,appraisal,rent,assetRent,extras,netWorth,
+    return {initialize,familyCost,market,shopping,openings,parts,partEmployers,setShift,transferEmployer,schedule,nextEvent,metrics,changeJob,birthday,appraisal,rent,assetRent,homeId,propertyUse,extras,netWorth,
       possessions,separationAmount,reviewReason,settleReview,repair,repairReason,repairQuote,possessionReason,trade,careerOptions,career,jobReason,hire,interview,interviewPrompt,matches,matchReason,match,specialActivities,special,isPartner,familyReason,adopt,dateReason,meet,visitPlan,visitAll,socialOptions,social,dateCost,introductionCost};
   }
   root.PocketWorld={createWorld};

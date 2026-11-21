@@ -78,7 +78,13 @@ u.click('choose','1');const first=state(u).cash;u.dispatch(previous);assert.equa
 assert(u.button('ack','lost-wallet'));u.click('ack','lost-wallet');wait(u);
 assert.equal(state(u).turns,1);
 const distressed=life(2026,41,0);distressed.sim.loans.living={balance:24000,principal:1800,rate:.025};
-u=boot(distressed,'#assets/budget');assert.match(text(u),/Outstanding balances/);u.click('sheet','household-help');
+distressed.sim.loans['housing-arrears']={balance:7200,principal:720,rate:0};
+u=boot(distressed,'#assets/budget');assert.match(text(u),/Housing arrears.*7,200/);
+assert.match(text(u),/Outstanding balances/);u.click('sheet','household-help');
+const snapshot=u.state();
+u.click('sheet','relief-shared');assert.match(text(u),/Next annual housing bill/);
+assert.match(text(u),/New rent arrears next birthday/);assert.deepEqual(u.state(),snapshot);
+u.click('sheet','household-help');wait(u);
 const choice=E.sim.hardshipOptions(state(u)).find(o=>o.id==='essentials');assert(choice&&!choice.reason);
 u.click('sheet','relief-essentials');assert(text(u).includes(choice.desc));
 const old=u.button('relief','essentials');u.click('relief','essentials');u.dispatch(old);wait(u);

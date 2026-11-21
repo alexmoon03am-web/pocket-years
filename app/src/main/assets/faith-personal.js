@@ -333,7 +333,7 @@
   }
   function inherit(parent,child,key){
     const heir=parent.people[key],personal=heir?npcState(parent,key,heir):state(parent);
-    const f=child.sim.faith||ensure(child);
+    const f=child.sim.faith||(child.sim.faith=state(child));
     for(const k of ['id','status',...metrics])f[k]=personal[k];
     f.originalId=personal.id;f.backgroundChoice=personal.id;f.openHouse=false;f.history=[];f.rituals=[];f.experience=personal.serviceYears||0;f.service=0;f.training=0;f.upbringing='shared';delete f.lastAnnual;
     const known=new Map(Object.entries(parent.people).filter(([,p])=>p.id).map(([k,p])=>[p.id,npcState(parent,k,p)]));

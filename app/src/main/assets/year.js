@@ -67,7 +67,11 @@
     const age=p?M.ageOf(l,p):l.age,town=p?.town||l.town,place=local||placeHealth(l,town);
     const early=s.timeline?.historicalRules?eraPressure(y):0;
     const adjusted=early>0||mode==='historical';
-    const intensity=mode==='historical'?1:.26;
+    // Guided mode protects the opening years of a newly created historical life.
+    // It does not change risks for NPCs or for Historical Realism playthroughs.
+    const earlyGuidance=mode==='guided'&&!p&&s.timeline?.historicalRules&&age<=4?
+      (age<=1?.18:age===2?.42:.65):1;
+    const intensity=(mode==='historical'?1:.26)*earlyGuidance;
     const livingDebt=(s.loans?.living?.balance||0)>0||(s.expansion?.missed||0)>1;
     const hardship=livingDebt&&(!p||age<18&&town===l.town);
     const childBudget=age<18&&town===l.town&&s.expansion?.start==='A tight household budget';
@@ -99,7 +103,7 @@
     if(l.sim.illnesses.some(c=>!c.treated&&c.severity>=30))factors.push('Untreated illness');
     if(l.sim.injuries.length)factors.push('Recovering from injury');
     return {mode:p.mode,label:p.mode==='historical'?'Historical Realism':'Guided',
-      description:p.mode==='historical'?'Childhood, childbirth and untreated illness carry greater risks, especially in earlier centuries.':'Age and local conditions shape health. Severe outcomes are less common.',
+      description:p.mode==='historical'?'Childhood, childbirth and untreated illness carry greater risks, especially in earlier centuries.':'Age and local conditions shape health. The first four birthdays of a historical life are gentler, though severe outcomes remain possible.',
       riskFactors:factors,careAccess:p.place.careAccess};
   }
   function create({random,rngItem,apply,log,world,sim,jobs}){

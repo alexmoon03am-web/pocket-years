@@ -275,7 +275,25 @@
         if(item.category==='Property'){
           const cost=Math.max(500,Math.round(a.value*.035));
           option('renovate','Renovate the property','Budget '+money(cost)+' · increases condition, value and rent.','home',(a.renovations||0)>=4?'Fully renovated':'',cost,()=>{a.renovations=(a.renovations||0)+1;a.value+=Math.round(cost*.82);a.condition=Math.min(100,a.condition+19);return 'The renovation passed inspection. There was one spare screw.';});
-          option('tenant',a.tenant?'End the current lease':'Screen and sign a tenant',a.tenant?'The unit stays vacant until relet.':'A full lease brings higher rent and turnover risk.','people','',0,()=>{
+          if(!item.commercial){
+            const home=W.homeId(l), status=W.propertyUse(l,ref);
+            option('occupy','Live here','Move into this home. A previous home becomes vacant.','home',
+              item.town&&item.town!==l.town?'Move to this city first':a.tenant?'End the current lease first':home===ref?'Current home':'',0,()=>{
+                for(const [id,other] of Object.entries(l.world.owned)){
+                  const property=shop.ownedItem(id,other);
+                  if(id!==ref&&property.category==='Property'&&!property.commercial&&!other.tenant&&
+                    (!property.town||property.town===l.town))other.vacant=true;
+                }
+                a.manager=false;a.vacant=false;
+                return 'I moved into '+shop.title(item)+'.';
+              },false);
+            option('vacate','Leave vacant','Leave this home empty. No rent is collected.','home',
+              a.tenant?'End the current lease first':status==='Vacant'&&a.vacant&&!a.manager?'Already vacant':'',0,()=>{
+                a.manager=false;a.vacant=true;
+                return 'I left '+shop.title(item)+' empty.';
+              },false);
+          }
+          option('tenant',a.tenant?'End the current lease':'Screen and sign a tenant',a.tenant?'The unit stays vacant until relet.':'Collect rent while a tenant is in place. If you live here, you will move out.','people','',0,()=>{
             if(a.tenant){a.tenant=null;a.vacant=true;return 'The tenant returned the keys.';}a.tenant={name:['Lee','Rivera','Okafor','Chen','Singh'][M.hash(ref+year)%5],since:year};a.vacant=false;return 'I signed a lease with '+a.tenant.name+'.';},false);
           option('manager',a.manager?'Manage property yourself':'Hire a property manager','Management costs 10% of base rent. Vacancies are filled automatically.','bag','',0,()=>{a.manager=!a.manager;return a.manager?'The property manager took the spare keys.':'I took the spare keys back.';},false);
           if(loan){const propertyRate=Ec.local(l,item.town||l.town).rate;option('refi','Refinance the mortgage','15 years at '+pct(propertyRate)+' · '+money(250)+' closing costs.','wallet',credit(l)<45?'Credit needs to recover':'',250,()=>{

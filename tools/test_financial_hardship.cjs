@@ -28,18 +28,30 @@ function denied(l,id){
 const poor=household(),start=S.budget(poor),snapshot=JSON.stringify(poor);
 S.hardshipOptions(poor);S.budget(poor);assert.equal(JSON.stringify(poor),snapshot);
 assert(start.support>0&&start.support<=start.living+start.housing);assert(start.warnings.length);
+const preview=S.reliefPreview(poor,'shared');
+assert(preview&&preview.after.housing<preview.before.housing);
+assert.equal(JSON.stringify(poor),snapshot);
 const assisted=clone(poor);act(assisted,'aid');assert.equal(assisted.cash,0);denied(assisted,'aid');
 act(assisted,'essentials');act(assisted,'shared');
 const assistedQuote=S.budget(assisted);assert(assistedQuote.living<start.living&&assistedQuote.housing<start.housing&&assistedQuote.arrears<start.arrears);
 const ended=clone(assisted);act(ended,'essentials');act(ended,'shared');assert.equal(S.budget(ended).housing,start.housing);
 let unmet=false;
 for(let i=0;i<27;i++){
+  const previous=S.debt(poor);
   const b=year(poor);unmet||=b.uncovered>0;
-  assert.equal(poor.cash,0);assert(S.debt(poor)<27000);
+  assert.equal(poor.cash,0);
+  const rentDebt=poor.sim.loans['housing-arrears'];
+  assert((poor.sim.loans.living?.balance||0)<=Math.max(previous,b.creditLimit));
+  if(rentDebt){
+    assert.equal(rentDebt.rate,0);
+    assert(rentDebt.balance<=Math.max(previous,Math.round(b.housing*2.3)));
+  }
 }
-assert(unmet&&poor.stats.joy<60);
+assert(unmet&&poor.stats.joy<60);assert(poor.sim.loans['housing-arrears']?.balance>0);
 const enormous=household();enormous.sim.loans.living={principal:400,balance:329337};
-const old=S.debt(enormous);for(let i=0;i<4;i++)year(enormous);assert.equal(S.debt(enormous),old);
+const old=S.debt(enormous);for(let i=0;i<4;i++)year(enormous);assert.equal(enormous.sim.loans.living.balance,old);
+const workout=S.reliefPreview(poor,'workout');assert(workout);
+assert.equal(workout.after.interest,0);
 act(poor,'workout');assert.equal(S.budget(poor).interest,0);denied(poor,'workout');
 poor.job='clerk';for(let i=0;i<12;i++)year(poor);assert.equal(S.debt(poor),0);assert(poor.cash>0);
 
