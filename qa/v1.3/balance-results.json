@@ -1,0 +1,933 @@
+{
+  "release": "1.3.0",
+  "originalCommit": "8baa84ab074e8aef7810118064a5f3b9a081cfbc",
+  "sourceAssetDigest": "432c5b56f1ad179e115d89a06b3de0185cd3ebb6ada9fb907c4eb00c41ee1d43",
+  "baselineAssetDigest": "f935d5f29ec66a989f8b2b859fcecd301cefba1e5cb3ba0ea0e4a408f9aa5400",
+  "suites": [
+    "test_backup_picker",
+    "test_balance_ui",
+    "test_calendar_ui",
+    "test_career_balance",
+    "test_education_pathways",
+    "test_expansion",
+    "test_expansion_ui",
+    "test_faith_continuity",
+    "test_faith_creation",
+    "test_faith_institutions",
+    "test_faith_legacy",
+    "test_faith_movements",
+    "test_faith_personal",
+    "test_faith_scale",
+    "test_faith_sheets",
+    "test_financial_hardship",
+    "test_future_epochs",
+    "test_future_purchasing_power",
+    "test_game",
+    "test_geography",
+    "test_historical_continuity",
+    "test_historical_health",
+    "test_history_dynasty",
+    "test_history_economy",
+    "test_history_gameplay_ui",
+    "test_history_world",
+    "test_interface",
+    "test_life_systems",
+    "test_market",
+    "test_occupations",
+    "test_pathway_dynasty",
+    "test_pathways_stories",
+    "test_pathways_ui",
+    "test_performance_studio",
+    "test_pets_relationships",
+    "test_released_student",
+    "test_school_community",
+    "test_timeline"
+  ],
+  "uiPlaythrough": {
+    "seed": 1013904226,
+    "clicks": 216,
+    "events": 31,
+    "purchases": 1,
+    "work": 1,
+    "adoptions": 3,
+    "years": 61,
+    "largestStoredBytes": 47015
+  },
+  "hostStorageTimings": {
+    "checks": 37,
+    "largest": {
+      "year": 2100,
+      "bytes": 490234,
+      "archive": 21
+    },
+    "seconds": 4.92,
+    "metrics": {
+      "exportFile": {
+        "p50ms": 9.61,
+        "p95ms": 30.27,
+        "maxms": 33.15,
+        "count": 37
+      },
+      "inspectFile": {
+        "p50ms": 31.28,
+        "p95ms": 86.21,
+        "maxms": 88.3,
+        "count": 37
+      },
+      "save": {
+        "p50ms": 8.95,
+        "p95ms": 20.04,
+        "maxms": 22.51,
+        "count": 37
+      },
+      "load": {
+        "p50ms": 15.17,
+        "p95ms": 40.2,
+        "maxms": 41.93,
+        "count": 37
+      }
+    }
+  },
+  "pathways": [
+    {
+      "town": "kyoto",
+      "year": 1200,
+      "courses": [
+        "workshop-craft"
+      ],
+      "lives": 64,
+      "birthdays": 3934,
+      "admissions": 60,
+      "admissionRefusals": 2,
+      "credentials": 60,
+      "completedPaths": 60,
+      "withdrawals": 0,
+      "dismissals": 0,
+      "newJobs": 0,
+      "workDecisions": 0,
+      "reachedTarget": 0,
+      "saveImports": 45,
+      "medianDeathAge": 64,
+      "medianWage35": 11508
+    },
+    {
+      "town": "cairo",
+      "year": 1550,
+      "courses": [
+        "market-books"
+      ],
+      "lives": 64,
+      "birthdays": 4080,
+      "admissions": 62,
+      "admissionRefusals": 0,
+      "credentials": 62,
+      "completedPaths": 62,
+      "withdrawals": 0,
+      "dismissals": 0,
+      "newJobs": 0,
+      "workDecisions": 0,
+      "reachedTarget": 0,
+      "saveImports": 43,
+      "medianDeathAge": 65,
+      "medianWage35": 12656
+    },
+    {
+      "town": "delhi",
+      "year": 1800,
+      "courses": [
+        "timber-framing"
+      ],
+      "lives": 64,
+      "birthdays": 3986,
+      "admissions": 63,
+      "admissionRefusals": 1,
+      "credentials": 63,
+      "completedPaths": 63,
+      "withdrawals": 0,
+      "dismissals": 0,
+      "newJobs": 0,
+      "workDecisions": 0,
+      "reachedTarget": 0,
+      "saveImports": 43,
+      "medianDeathAge": 62,
+      "medianWage35": 16226
+    },
+    {
+      "town": "london",
+      "year": 1910,
+      "courses": [
+        "biology",
+        "clinical-medicine"
+      ],
+      "lives": 64,
+      "birthdays": 4445,
+      "admissions": 122,
+      "admissionRefusals": 4,
+      "credentials": 122,
+      "completedPaths": 61,
+      "withdrawals": 0,
+      "dismissals": 0,
+      "newJobs": 0,
+      "workDecisions": 0,
+      "reachedTarget": 0,
+      "saveImports": 58,
+      "medianDeathAge": 70,
+      "medianWage35": 24334
+    },
+    {
+      "town": "cairo",
+      "year": 1991,
+      "courses": [
+        "nursing-associate",
+        "nursing-bachelor"
+      ],
+      "lives": 64,
+      "birthdays": 4671,
+      "admissions": 124,
+      "admissionRefusals": 1,
+      "credentials": 124,
+      "completedPaths": 62,
+      "withdrawals": 0,
+      "dismissals": 0,
+      "newJobs": 24,
+      "workDecisions": 1606,
+      "reachedTarget": 0,
+      "saveImports": 54,
+      "medianDeathAge": 79,
+      "medianWage35": 25954
+    },
+    {
+      "town": "london",
+      "year": 2000,
+      "courses": [
+        "biology",
+        "clinical-medicine"
+      ],
+      "target": "occ-pediatrician",
+      "lives": 64,
+      "birthdays": 4331,
+      "admissions": 124,
+      "admissionRefusals": 9,
+      "credentials": 123,
+      "completedPaths": 61,
+      "withdrawals": 0,
+      "dismissals": 0,
+      "newJobs": 22,
+      "workDecisions": 1342,
+      "reachedTarget": 61,
+      "saveImports": 48,
+      "medianDeathAge": 74,
+      "medianWage35": 229880
+    },
+    {
+      "town": "kyoto",
+      "year": 2026,
+      "courses": [
+        "workshop-craft"
+      ],
+      "target": "occ-cabinetmaker",
+      "lives": 64,
+      "birthdays": 4625,
+      "admissions": 64,
+      "admissionRefusals": 1,
+      "credentials": 64,
+      "completedPaths": 64,
+      "withdrawals": 0,
+      "dismissals": 0,
+      "newJobs": 12,
+      "workDecisions": 1697,
+      "reachedTarget": 64,
+      "saveImports": 49,
+      "medianDeathAge": 75,
+      "medianWage35": 132853
+    },
+    {
+      "town": "delhi",
+      "year": 2026,
+      "courses": [
+        "civil-engineering",
+        "engineering-master",
+        "engineering-doctorate"
+      ],
+      "lives": 64,
+      "birthdays": 4838,
+      "admissions": 190,
+      "admissionRefusals": 9,
+      "credentials": 188,
+      "completedPaths": 62,
+      "withdrawals": 0,
+      "dismissals": 0,
+      "newJobs": 26,
+      "workDecisions": 1462,
+      "reachedTarget": 0,
+      "saveImports": 59,
+      "medianDeathAge": 79,
+      "medianWage35": 47460
+    },
+    {
+      "town": "london",
+      "year": 2026,
+      "courses": [
+        "biology"
+      ],
+      "withdraw": true,
+      "lives": 64,
+      "birthdays": 4780,
+      "admissions": 64,
+      "admissionRefusals": 1,
+      "credentials": 0,
+      "completedPaths": 0,
+      "withdrawals": 64,
+      "dismissals": 0,
+      "newJobs": 22,
+      "workDecisions": 1749,
+      "reachedTarget": 0,
+      "saveImports": 50,
+      "medianDeathAge": 76,
+      "medianWage35": 108527
+    },
+    {
+      "town": "delhi",
+      "year": 2026,
+      "courses": [
+        "nursing-associate"
+      ],
+      "lowEffort": true,
+      "lives": 64,
+      "birthdays": 4770,
+      "admissions": 64,
+      "admissionRefusals": 19,
+      "credentials": 0,
+      "completedPaths": 0,
+      "withdrawals": 0,
+      "dismissals": 64,
+      "newJobs": 22,
+      "workDecisions": 1613,
+      "reachedTarget": 0,
+      "saveImports": 55,
+      "medianDeathAge": 76,
+      "medianWage35": 44870
+    },
+    {
+      "town": "delhi",
+      "year": 2026,
+      "courses": [
+        "nursing-associate"
+      ],
+      "lowEffort": true,
+      "rebuild": true,
+      "lives": 64,
+      "birthdays": 4803,
+      "admissions": 128,
+      "admissionRefusals": 25,
+      "credentials": 64,
+      "completedPaths": 64,
+      "withdrawals": 0,
+      "dismissals": 64,
+      "newJobs": 26,
+      "workDecisions": 1620,
+      "reachedTarget": 0,
+      "saveImports": 59,
+      "medianDeathAge": 81,
+      "medianWage35": 49116
+    },
+    {
+      "town": "kyoto",
+      "year": 2080,
+      "courses": [
+        "orbital-systems"
+      ],
+      "lives": 64,
+      "birthdays": 4773,
+      "admissions": 62,
+      "admissionRefusals": 0,
+      "credentials": 62,
+      "completedPaths": 62,
+      "withdrawals": 0,
+      "dismissals": 0,
+      "newJobs": 23,
+      "workDecisions": 1640,
+      "reachedTarget": 0,
+      "saveImports": 58,
+      "medianDeathAge": 78,
+      "medianWage35": 147303
+    },
+    {
+      "town": "cairo",
+      "year": 2500,
+      "courses": [
+        "orbital-systems",
+        "space-master",
+        "space-doctorate"
+      ],
+      "lives": 64,
+      "birthdays": 4688,
+      "admissions": 186,
+      "admissionRefusals": 4,
+      "credentials": 184,
+      "completedPaths": 61,
+      "withdrawals": 0,
+      "dismissals": 0,
+      "newJobs": 21,
+      "workDecisions": 1434,
+      "reachedTarget": 0,
+      "saveImports": 50,
+      "medianDeathAge": 77,
+      "medianWage35": 116075
+    },
+    {
+      "town": "london",
+      "year": 3000,
+      "courses": [
+        "nursing-associate",
+        "nursing-bachelor"
+      ],
+      "lives": 64,
+      "birthdays": 4439,
+      "admissions": 126,
+      "admissionRefusals": 2,
+      "credentials": 125,
+      "completedPaths": 62,
+      "withdrawals": 0,
+      "dismissals": 0,
+      "newJobs": 18,
+      "workDecisions": 1493,
+      "reachedTarget": 0,
+      "saveImports": 45,
+      "medianDeathAge": 75,
+      "medianWage35": 305576
+    }
+  ],
+  "pathwayTotals": {
+    "lives": 896,
+    "birthdays": 63163,
+    "admissions": 1439,
+    "admissionRefusals": 78,
+    "credentials": 1241,
+    "completedPaths": 744,
+    "withdrawals": 64,
+    "dismissals": 128,
+    "workDecisions": 15656,
+    "saveImports": 716
+  },
+  "baselineDynasties": [
+    {
+      "seed": 2654435761,
+      "ticks": 900,
+      "generations": 21,
+      "reason": "900 years completed",
+      "saveChecks": 18,
+      "largestSave": 531473
+    },
+    {
+      "seed": 1013904226,
+      "ticks": 900,
+      "generations": 26,
+      "reason": "900 years completed",
+      "saveChecks": 18,
+      "largestSave": 534477
+    },
+    {
+      "seed": 3668339987,
+      "ticks": 900,
+      "generations": 23,
+      "reason": "900 years completed",
+      "saveChecks": 18,
+      "largestSave": 526499
+    },
+    {
+      "seed": 2027808452,
+      "ticks": 900,
+      "generations": 23,
+      "reason": "900 years completed",
+      "saveChecks": 18,
+      "largestSave": 524351
+    },
+    {
+      "seed": 387276917,
+      "ticks": 351,
+      "generations": 9,
+      "reason": "No living eligible child",
+      "saveChecks": 7,
+      "largestSave": 203132
+    },
+    {
+      "seed": 3041712678,
+      "ticks": 900,
+      "generations": 24,
+      "reason": "900 years completed",
+      "saveChecks": 18,
+      "largestSave": 535310
+    },
+    {
+      "seed": 1401181143,
+      "ticks": 900,
+      "generations": 22,
+      "reason": "900 years completed",
+      "saveChecks": 18,
+      "largestSave": 514072
+    },
+    {
+      "seed": 4055616904,
+      "ticks": 900,
+      "generations": 22,
+      "reason": "900 years completed",
+      "saveChecks": 18,
+      "largestSave": 524872
+    }
+  ],
+  "candidateDynasties": [
+    {
+      "seed": 2654435761,
+      "ticks": 900,
+      "generations": 21,
+      "reason": "900 years completed",
+      "saveChecks": 18,
+      "largestSave": 552147
+    },
+    {
+      "seed": 1013904226,
+      "ticks": 900,
+      "generations": 23,
+      "reason": "900 years completed",
+      "saveChecks": 18,
+      "largestSave": 549587
+    },
+    {
+      "seed": 3668339987,
+      "ticks": 900,
+      "generations": 25,
+      "reason": "900 years completed",
+      "saveChecks": 18,
+      "largestSave": 556635
+    },
+    {
+      "seed": 2027808452,
+      "ticks": 900,
+      "generations": 20,
+      "reason": "900 years completed",
+      "saveChecks": 18,
+      "largestSave": 534728
+    },
+    {
+      "seed": 387276917,
+      "ticks": 13,
+      "generations": 1,
+      "reason": "No living eligible child",
+      "saveChecks": 0,
+      "largestSave": 0
+    },
+    {
+      "seed": 3041712678,
+      "ticks": 344,
+      "generations": 11,
+      "reason": "No living eligible child",
+      "saveChecks": 6,
+      "largestSave": 189796
+    },
+    {
+      "seed": 1401181143,
+      "ticks": 900,
+      "generations": 23,
+      "reason": "900 years completed",
+      "saveChecks": 18,
+      "largestSave": 548090
+    },
+    {
+      "seed": 4055616904,
+      "ticks": 62,
+      "generations": 3,
+      "reason": "No living eligible child",
+      "saveChecks": 1,
+      "largestSave": 42993
+    }
+  ],
+  "londonAge35": {
+    "ordinary": {
+      "baseline": {
+        "survived": 39,
+        "jobs": {
+          "organizer": 35,
+          "photographer": 1,
+          "dispatcher": 3
+        },
+        "pay": {
+          "min": 63753,
+          "p10": 80397,
+          "p50": 87624,
+          "p90": 99608,
+          "max": 105125
+        },
+        "net": {
+          "min": 253377,
+          "p10": 265763,
+          "p50": 290372,
+          "p90": 313258,
+          "max": 361578
+        },
+        "debt": {
+          "min": 0,
+          "p10": 0,
+          "p50": 0,
+          "p90": 0,
+          "max": 0
+        }
+      },
+      "candidate": {
+        "survived": 37,
+        "jobs": {
+          "organizer": 19,
+          "occ-wholesale-representative": 6,
+          "actor": 1,
+          "occ-swimming-instructor": 5,
+          "manager": 1,
+          "occ-casting-assistant": 2,
+          "producer": 2,
+          "dispatcher": 1
+        },
+        "pay": {
+          "min": 62629,
+          "p10": 69829,
+          "p50": 85199,
+          "p90": 100390,
+          "max": 113999
+        },
+        "net": {
+          "min": 207153,
+          "p10": 228006,
+          "p50": 291366,
+          "p90": 323072,
+          "max": 435847
+        },
+        "debt": {
+          "min": 0,
+          "p10": 0,
+          "p50": 0,
+          "p90": 0,
+          "max": 0
+        }
+      }
+    },
+    "unemployed": {
+      "baseline": {
+        "survived": 39,
+        "jobs": {
+          "unemployed": 39
+        },
+        "pay": {
+          "min": 0,
+          "p10": 0,
+          "p50": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "net": {
+          "min": -42025,
+          "p10": -38765,
+          "p50": -36094,
+          "p90": -34498,
+          "max": -32841
+        },
+        "debt": {
+          "min": 32841,
+          "p10": 34498,
+          "p50": 36094,
+          "p90": 38765,
+          "max": 42025
+        }
+      },
+      "candidate": {
+        "survived": 39,
+        "jobs": {
+          "unemployed": 39
+        },
+        "pay": {
+          "min": 0,
+          "p10": 0,
+          "p50": 0,
+          "p90": 0,
+          "max": 0
+        },
+        "net": {
+          "min": -41785,
+          "p10": -38765,
+          "p50": -36094,
+          "p90": -34531,
+          "max": -32841
+        },
+        "debt": {
+          "min": 32841,
+          "p10": 34531,
+          "p50": 36094,
+          "p90": 38765,
+          "max": 42025
+        }
+      }
+    },
+    "professional": {
+      "baseline": {
+        "survived": 38,
+        "jobs": {
+          "physician": 38
+        },
+        "pay": {
+          "min": 174326,
+          "p10": 183053,
+          "p50": 197795,
+          "p90": 226749,
+          "max": 231194
+        },
+        "net": {
+          "min": 347479,
+          "p10": 386532,
+          "p50": 423904,
+          "p90": 455189,
+          "max": 476007
+        },
+        "debt": {
+          "min": 3677,
+          "p10": 5538,
+          "p50": 5853,
+          "p90": 6499,
+          "max": 9515
+        }
+      },
+      "candidate": {
+        "survived": 37,
+        "jobs": {
+          "occ-psychiatrist": 7,
+          "occ-family-physician": 4,
+          "occ-anesthesiologist": 23,
+          "occ-pediatrician": 2,
+          "physician": 1
+        },
+        "pay": {
+          "min": 192248,
+          "p10": 201715,
+          "p50": 225355,
+          "p90": 254351,
+          "max": 279762
+        },
+        "net": {
+          "min": 424747,
+          "p10": 449779,
+          "p50": 494896,
+          "p90": 540486,
+          "max": 575266
+        },
+        "debt": {
+          "min": 3677,
+          "p10": 5538,
+          "p50": 5885,
+          "p90": 6614,
+          "max": 9746
+        }
+      }
+    },
+    "wealthy": {
+      "baseline": {
+        "survived": 39,
+        "jobs": {
+          "organizer": 35,
+          "photographer": 1,
+          "dispatcher": 3
+        },
+        "pay": {
+          "min": 63753,
+          "p10": 80397,
+          "p50": 87624,
+          "p90": 99608,
+          "max": 105125
+        },
+        "net": {
+          "min": 263992,
+          "p10": 270882,
+          "p50": 299640,
+          "p90": 348132,
+          "max": 375794
+        },
+        "debt": {
+          "min": 0,
+          "p10": 0,
+          "p50": 0,
+          "p90": 0,
+          "max": 0
+        }
+      },
+      "candidate": {
+        "survived": 38,
+        "jobs": {
+          "organizer": 21,
+          "occ-wholesale-representative": 6,
+          "occ-swimming-instructor": 4,
+          "manager": 3,
+          "occ-casting-assistant": 1,
+          "producer": 2,
+          "dispatcher": 1
+        },
+        "pay": {
+          "min": 63118,
+          "p10": 69891,
+          "p50": 85413,
+          "p90": 98598,
+          "max": 113999
+        },
+        "net": {
+          "min": 212553,
+          "p10": 240518,
+          "p50": 300661,
+          "p90": 349292,
+          "max": 450411
+        },
+        "debt": {
+          "min": 0,
+          "p10": 0,
+          "p50": 0,
+          "p90": 0,
+          "max": 0
+        }
+      }
+    },
+    "recovery": {
+      "baseline": {
+        "survived": 39,
+        "jobs": {
+          "organizer": 31,
+          "dispatcher": 7,
+          "producer": 1
+        },
+        "pay": {
+          "min": 64927,
+          "p10": 65977,
+          "p50": 72029,
+          "p90": 81949,
+          "max": 91831
+        },
+        "net": {
+          "min": 754,
+          "p10": 8514,
+          "p50": 18814,
+          "p90": 30968,
+          "max": 76563
+        },
+        "debt": {
+          "min": 19584,
+          "p10": 22834,
+          "p50": 25106,
+          "p90": 26335,
+          "max": 27689
+        }
+      },
+      "candidate": {
+        "survived": 39,
+        "jobs": {
+          "organizer": 19,
+          "dispatcher": 2,
+          "occ-wholesale-representative": 9,
+          "occ-voice-actor": 4,
+          "occ-swimming-instructor": 2,
+          "occ-casting-assistant": 2,
+          "occ-session-musician": 1
+        },
+        "pay": {
+          "min": 64927,
+          "p10": 66734,
+          "p50": 70961,
+          "p90": 80369,
+          "max": 86108
+        },
+        "net": {
+          "min": 4253,
+          "p10": 9373,
+          "p50": 20229,
+          "p90": 35702,
+          "max": 108020
+        },
+        "debt": {
+          "min": 19584,
+          "p10": 22853,
+          "p50": 24876,
+          "p90": 26333,
+          "max": 26760
+        }
+      }
+    },
+    "assistedRecovery": {
+      "baseline": {
+        "survived": 39,
+        "jobs": {
+          "organizer": 31,
+          "dispatcher": 7,
+          "producer": 1
+        },
+        "pay": {
+          "min": 64927,
+          "p10": 65977,
+          "p50": 72029,
+          "p90": 81949,
+          "max": 91831
+        },
+        "net": {
+          "min": 94122,
+          "p10": 116850,
+          "p50": 132410,
+          "p90": 147645,
+          "max": 215744
+        },
+        "debt": {
+          "min": 1592,
+          "p10": 2629,
+          "p50": 2998,
+          "p90": 3168,
+          "max": 4237
+        }
+      },
+      "candidate": {
+        "survived": 39,
+        "jobs": {
+          "organizer": 19,
+          "dispatcher": 1,
+          "occ-wholesale-representative": 9,
+          "occ-voice-actor": 4,
+          "occ-swimming-instructor": 4,
+          "occ-casting-assistant": 2
+        },
+        "pay": {
+          "min": 62629,
+          "p10": 66667,
+          "p50": 70961,
+          "p90": 80369,
+          "max": 86108
+        },
+        "net": {
+          "min": 96042,
+          "p10": 122347,
+          "p50": 134830,
+          "p90": 149205,
+          "max": 220992
+        },
+        "debt": {
+          "min": 1592,
+          "p10": 2760,
+          "p50": 2988,
+          "p90": 3318,
+          "max": 4237
+        }
+      }
+    }
+  },
+  "apkSHA256": "5501a059b8e5bf40a52638952e452161896d4925f9582ee32f24fa242f7d423a",
+  "beforeEmployerOffers": {
+    "codeDigest": "c1e57c653da34cd941fb934c54b341e2ec717cf5a104b9c30f09772fd4ebd558",
+    "londonJobCountsAt35": {
+      "ordinary": {
+        "occ-wholesale-representative": 35,
+        "producer": 1,
+        "occ-league-official": 4
+      },
+      "professional": {
+        "occ-anesthesiologist": 38
+      }
+    }
+  }
+}
