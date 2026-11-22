@@ -198,5 +198,10 @@
     }
     if(contracts>1)bad();
   }
-  root.PocketPerformanceStudio={view,perform,pay,settle,validate};
+  function skill(l,id){return ids.includes(id)?record(l,id).skill:0;}
+  function drill(l,id,gain){
+    if(!ids.includes(id)||!Number.isInteger(gain)||gain<1||gain>7)return;
+    const r=track(l,id);r.skill=clamp(r.skill+gain);
+  }
+  root.PocketPerformanceStudio={view,perform,pay,settle,validate,skill,drill};
 })(typeof module!=='undefined'&&module.exports?module.exports:window);

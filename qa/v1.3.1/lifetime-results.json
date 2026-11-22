@@ -1,0 +1,89 @@
+{
+  "birthdays": 13188,
+  "lives": 192,
+  "validatedImports": 370,
+  "challenges": {
+    "historical": {
+      "attempts": 594,
+      "wins": 519
+    },
+    "sport": {
+      "attempts": 730,
+      "wins": 596
+    },
+    "music": {
+      "attempts": 746,
+      "wins": 638
+    },
+    "career": {
+      "attempts": 502,
+      "wins": 444
+    },
+    "burglary": {
+      "attempts": 461,
+      "wins": 286
+    },
+    "escape": {
+      "attempts": 5257,
+      "wins": 2272
+    },
+    "driving": {
+      "attempts": 157,
+      "wins": 126
+    },
+    "cards": {
+      "attempts": 90,
+      "wins": 30
+    }
+  },
+  "panels": [
+    {
+      "birthYear": 1240,
+      "town": "london",
+      "enabled": true,
+      "lives": 32,
+      "birthdays": 1865,
+      "attempts": 1140
+    },
+    {
+      "birthYear": 1240,
+      "town": "london",
+      "enabled": false,
+      "lives": 32,
+      "birthdays": 1707,
+      "attempts": 1144
+    },
+    {
+      "birthYear": 2001,
+      "town": "cedar",
+      "enabled": true,
+      "lives": 32,
+      "birthdays": 2297,
+      "attempts": 1416
+    },
+    {
+      "birthYear": 2001,
+      "town": "cedar",
+      "enabled": false,
+      "lives": 32,
+      "birthdays": 2592,
+      "attempts": 1678
+    },
+    {
+      "birthYear": 2450,
+      "town": "kyoto",
+      "enabled": true,
+      "lives": 32,
+      "birthdays": 2397,
+      "attempts": 1545
+    },
+    {
+      "birthYear": 2450,
+      "town": "kyoto",
+      "enabled": false,
+      "lives": 32,
+      "birthdays": 2330,
+      "attempts": 1614
+    }
+  ]
+}

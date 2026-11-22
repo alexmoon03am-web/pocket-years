@@ -19,6 +19,7 @@
     const blank=()=>({version:4,active:engine.makeLife({birthYear:2026}),archive:[],settings:{motion:'system'}});
     function decode(raw){
       const game=engine.decodeGame(parse(raw));
+      engine.minigames.validateSettings(game.settings.minigames);
       const dynasty=typeof module!=='undefined'&&module.exports?require('./history-dynasty.js').PocketHistoryDynasty:root.PocketHistoryDynasty;
       for(const l of [game.active,...game.archive]){
         if(dynasty?.isArchive(l)){if(l===game.active)throw Error('A closed archive cannot be an active life.');dynasty.validateArchive(l);continue;}
@@ -45,6 +46,8 @@
           if(!breeds||typeof pet.name!=='string'||!Number.isInteger(pet.years)||pet.years<0||!Number.isInteger(pet.lifespan)||pet.lifespan<1)throw Error('Invalid pet record.');
           if(pet.breed!==undefined&&!breeds.includes(pet.breed))throw Error('Unrecognized pet breed.');
         }
+        if(l.sim.court&&(!own(engine.sim.actions,l.sim.court.id)||!Number.isSafeInteger(l.sim.court.term)||
+          l.sim.court.term<0||!Number.isSafeInteger(l.sim.court.fine)||l.sim.court.fine<0))throw Error('Invalid court hearing.');
         const pending=[l.event,...l.eventQueue,...(l.world.events||[])].filter(Boolean);
         if(pending.some(e=>e.id&&!own(engine.stories,e.id)))throw Error('Unrecognized life event.');
         function validHolding(id,a){
@@ -55,7 +58,7 @@
         }
         for(const [id,a] of Object.entries(l.world.owned))if(!validHolding(id,a))throw Error('Invalid asset record.');
         engine.sim.validateFinance(l);
-        for(const system of [engine.education,engine.schoolCommunity,engine.pathways,engine.performanceStudio])system.validate(l);
+        for(const system of [engine.education,engine.schoolCommunity,engine.pathways,engine.performanceStudio,engine.minigames])system.validate(l);
         const x=l.sim.expansion;if(x){
           for(const field of ['companies','policies','hobbies','permits','portfolio','family'])if(!x[field]||typeof x[field]!=='object'||Array.isArray(x[field]))throw Error('Incomplete expansion record.');
           for(const field of ['certs','passports','awards'])if(!Array.isArray(x[field]))throw Error('Incomplete expansion record.');
@@ -93,29 +96,66 @@
       if(!put(k+'.check',before+'/'+fingerprint))return false;
       return put(k,raw);
     }
+    // This watermark is outside the save slots and exported files. Restoring
+    // earlier work cannot reopen an attempt, reset its turns or avoid a result.
+    // A pending watermark counts only once its matching snapshot is on disk.
+    const staleMessage='This backup predates recorded minigame progress on this device.';
+    function guard(l){
+      const target=key+'.minis.'+encodeURIComponent(l.id)+'-'+l.born;
+      const raw=get(target);let row=null;
+      if(raw)try{row=JSON.parse(raw);}catch{}
+      const normalized=Number.isSafeInteger(row?.confirmed)&&row.confirmed>=0?row.confirmed:0;
+      const pending=row?.pending;
+      let current=normalized;
+      if(pending&&Number.isSafeInteger(pending.turn)&&pending.turn>normalized){
+        const file=get(pending.slot);
+        if(file&&checksum(file)===pending.check)current=pending.turn;
+        else if(typeof pending.mirror==='string'){
+          const copy=get(pending.mirror);
+          if(copy&&checksum(copy)===pending.check)current=pending.turn;
+        }
+      }
+      return {target,current,unconfirmed:current>normalized};
+    }
+    function admissible(game){
+      if(game&&engine.minigames.revision(game.active)<guard(game.active).current){message=staleMessage;return null;}
+      return game;
+    }
     function readSlot(n){
-      const k=slot(n),raw=get(k),current=stored(k);
+      const k=slot(n),raw=get(k),current=admissible(stored(k));
       if(current){checked.set(k,raw);return current;}
-      const previous=stored(k+'.backup')||stored(k+'.manual');
+      const previous=admissible(stored(k+'.backup'))||admissible(stored(k+'.manual'));
       if(raw){put(k+'.recovery',raw);message=previous?'Recovered the last readable save.':'The damaged save was kept for recovery.';failed=!previous;}
-      if(previous)putSnapshot(k,JSON.stringify(engine.encodeGame(previous)));
+      if(previous)write(previous,k,false);
       return previous;
     }
-    function write(game,k,backup=true){
+    function write(game,k,backup=true,expected){
       let raw;try{raw=JSON.stringify(engine.encodeGame(game));}catch{failed=true;return false;}
       if(raw.length>maxLength){failed=true;message='This save is too large for device storage.';return false;}
-      const old=get(k);if(old===raw){failed=false;return true;}
-      if(backup&&old){
+      const proof=guard(game.active),revision=engine.minigames.revision(game.active);
+      if(revision<proof.current){message=staleMessage;failed=true;return false;}
+      if(expected!==undefined&&(proof.current!==expected||revision<=expected)){
+        message='This attempt has already advanced on this device. Reopen the game to resume it.';failed=true;return false;
+      }
+      if(proof.unconfirmed&&!put(proof.target,JSON.stringify({confirmed:proof.current})))return false;
+      const old=get(k);if(old===raw&&revision===proof.current){failed=false;return true;}
+      const newer=revision>proof.current,mirror=k+'.backup';
+      if(newer&&!put(proof.target,JSON.stringify({confirmed:proof.current,pending:{turn:revision,slot:k,mirror,check:checksum(raw)}})))return false;
+      if(!newer&&backup&&old){
         // A bad generation must never replace a known-good backup.
         if(checked.get(k)===old||stored(k))putSnapshot(k+'.backup',old);
       }
       if(!putSnapshot(k,raw))return false;
+      if(newer){
+        if(backup)putSnapshot(mirror,raw);
+        put(proof.target,JSON.stringify({confirmed:revision}));
+      }
       checked.set(k,raw);failed=false;return true;
     }
     function load(){return readSlot(selected)||blank();}
-    function checkpoint(){return stored(slot(selected)+'.manual');}
+    function checkpoint(){return admissible(stored(slot(selected)+'.manual'));}
     function restore(){const next=checkpoint();return next&&write(next,slot(selected))?next:null;}
-    function recover(){const next=stored(slot(selected)+'.backup');return next&&write(next,slot(selected))?next:null;}
+    function recover(){const next=admissible(stored(slot(selected)+'.backup'));return next&&write(next,slot(selected))?next:null;}
     function slots(){return [1,2,3].map(n=>{
       const raw=get(slot(n));let v=null;try{if(raw)v=JSON.parse(raw).active;}catch{}return {n,active:n===selected,name:v?(v.run?[v.firstName,v.lastName].filter(Boolean).join(' '):v.name):'',age:v?.age,occupied:!!raw};
     });}
@@ -134,16 +174,16 @@
         if(data.format==='Pocket Years backup'){
           const payload=JSON.stringify(data.game);
           if(data.version!==1||typeof payload!=='string'||checksum(payload)!==data.checksum)throw Error('Backup checksum does not match.');
-          return decode(payload);
+          return admissible(decode(payload));
         }
-        return decode(raw);
+        return admissible(decode(raw));
       }catch{message='This file could not be read. Your current life is safe.';return null;}
     }
     function importFile(raw){
       const next=inspectFile(raw);if(!next||!write(next,slot(selected)))return null;
       message='Imported into slot '+selected+'.';return next;
     }
-    return {load,save:g=>write(g,slot(selected)),manual:g=>write(g,slot(selected)+'.manual',false),checkpoint,restore,recover,slots,select,exportFile,importFile,inspectFile,
+    return {load,save:g=>write(g,slot(selected)),saveChallenge:(g,expected)=>write(g,slot(selected),true,expected),manual:g=>write(g,slot(selected)+'.manual',false),checkpoint,restore,recover,slots,select,exportFile,importFile,inspectFile,
       get hasBackup(){return !!get(slot(selected)+'.backup');},get current(){return selected;},get message(){return message;},get failed(){return failed;}};
   }
   root.PocketSaves={open};

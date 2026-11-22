@@ -314,7 +314,7 @@
           const service=['era-warrior','era-retainer'].reduce((n,key)=>n+(l.world.roleYears?.[key]??(l.job===key?Math.max(0,l.age-l.world.since):0)),0);
           if(service<2)qual='Needs 2 years of guard or court service, or an inherited landed title';
         }
-        add('job-'+id,r[1],costText(wage(l,id))+' per year'+(r[3]?' · training '+r[3]+'/6':''),'bag',0,id===l.job?'Current occupation':l.sim.program?'Finish or leave your course':qual,api=>{
+        add('job-'+id,r[1],costText(wage(l,id))+' per year'+(r[3]?' · training '+r[3]+'/6':''),'bag',0,id===l.job?'Current occupation':l.sim.minigames?.fugitive?'Resolve your outstanding sentence first':l.sim.program?'Finish or leave your course':qual,api=>{
           changeJob(l,id,api);if(r[0]==='knight'&&!l.sim.lifeTags.includes('court-service'))l.sim.lifeTags.push('court-service');
           return 'I took work as a '+r[1].toLowerCase()+'. The pay starts on my next birthday.';});
       }

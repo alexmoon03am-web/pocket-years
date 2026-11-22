@@ -29,6 +29,10 @@
   const communityPropertyLink=()=>row('sheet','faith-institutions','Community land & institutions','Review local deeds, staff and operating accounts.','home');
   const careerFaithLink=()=>row('sheet','faith-career','Religious vocations','Training, service and community leadership.','people');
   const pathwaysUI=window.PocketPathwaysUI.create({E,row,detail,subhead,esc,cash});
+  const miniUI=window.PocketMinigameUI.create({E,row,detail,subhead,esc,cash,button:actionButton,reduced:()=>M.reduced});
+  const interactive=()=>!life.ended&&life.age>=12&&E.minigames.entries(life).length?
+    row('sheet','mini-menu','Interactive activities','Play challenges tied to this life.','dice'):'';
+  let endingChallenge=false;
   const earlier=()=>E.isHistorical(life);
   const future=()=>E.historyEconomy.isFuture(life);
   const futureWords=()=>{
@@ -53,7 +57,7 @@
     return occupationTabs('school')+pageTitle('Education','Training in '+historicalUI.location(life.town,E.calendar(life)))+noteHtml()+pathwaysUI.schoolLinks(life)+classLink()+historicalUI.rows(life,'school');
   }
   function periodCareer(){
-    return occupationTabs('career')+pageTitle('Occupation',E.occupation(life))+noteHtml()+pathwaysUI.studioLink(life)+historicalUI.rows(life,'work')+
+    return occupationTabs('career')+pageTitle('Occupation',E.occupation(life))+noteHtml()+pathwaysUI.studioLink(life)+miniUI.options(life,'work')+historicalUI.rows(life,'work')+
       subhead('Independent work')+newEconomy('business','Enterprises','Open a business or manage the family trade.');
   }
   function budgetAlert(b){
@@ -70,7 +74,7 @@
   function periodActivities(){
     if(life.sim.prison)return pageTitle('In custody',life.sim.prison+' years remaining')+noteHtml()+hubRow('custody');
     return pageTitle('Activities',historicalUI.location(life.town,E.calendar(life)))+noteHtml()+'<div class="commands">'+E.actionList(life).map(a=>row('activity',a[0],a[1],a[2],a[3],E.actionReason(life,a[0]))).join('')+'</div>'+(life.age>=4?historicalUI.rows(life,'activities'):'')+subhead('Community')+
-      '<div class="commands">'+row('sheet','hist-world','Your settlement','Local industries, government and transport.','map')+
+      '<div class="commands">'+miniUI.warrantLink(life)+interactive()+row('sheet','hist-world','Your settlement','Local industries, government and transport.','map')+
       (life.age>=5?extra.link('hobbies','Hobbies & ambitions','Practice a skill or choose a personal goal.','sprout'):'')+
       row('sheet','hist-move','Move household','See destinations and journey costs.','compass',life.age<18?'Opens at 18':'')+
       (life.age>=18?hubRow('pets')+hubRow('crime'):'')+row('tab','people','Family and friends','Visit your household or meet someone.','people')+newEconomy('museum','Family Museum','Explore the collection.')+'</div>';
@@ -122,7 +126,13 @@
     display(next,reason);
   }
   function onHistory(){
-    if(!pendingBack&&activeRoute&&(['assets','activities'].includes(activeRoute.tab)||activeRoute.sheet?.startsWith('hist-')||activeRoute.sheet?.startsWith('faith-')||activeRoute.sheet?.startsWith('path-')||activeRoute.sheet?.startsWith('job-'))){
+    if(E.minigames.active(life)&&readRoute().sheet!=='minigame'){
+      pendingBack=null;
+      pauseChallenge();
+      writeRoute({tab:'life',sheet:'minigame'},false);
+      return;
+    }
+    if(!pendingBack&&activeRoute&&(['assets','activities'].includes(activeRoute.tab)||activeRoute.sheet?.startsWith('hist-')||activeRoute.sheet?.startsWith('faith-')||activeRoute.sheet?.startsWith('path-')||activeRoute.sheet?.startsWith('job-')||activeRoute.sheet?.startsWith('mini-'))){
       const destination=readRoute();
       if(destination.tab===activeRoute.tab&&!destination.sheet){
         const parent=parentSheet(activeRoute.tab,activeRoute.sheet);
@@ -325,7 +335,7 @@
       (employed||life.world.partJob?meter('Performance',v.jobPerformance,'trend'):'')+'<p class="feature-detail">'+esc([v.employer,E.occupations.entries[life.job]?E.occupations.rank(life,life.job):'',v.jobTitle?cash(v.salary+(S.budget(life).pension||0))+' annual pay':'',v.yearsAtJob?v.yearsAtJob+' years in role':''].filter(Boolean).join(' · '))+'</p></section>'+noteHtml();
     if(life.ended)return html;
     if(eraExtras())html+=newEconomy('work',future()?'Future professions':'Specialist work','Opportunities and assignments this year.')+newEconomy('business',future()?'Future enterprises':'Independent enterprises','Industry and private ventures.');
-    html+=pathwaysUI.workLink(life)+pathwaysUI.studioLink(life)+careerFaithLink();
+    html+=pathwaysUI.workLink(life)+pathwaysUI.studioLink(life)+miniUI.options(life,'work')+careerFaithLink();
     if(under&&life.age<14)return html+detail('Part-time work','Jobs open at age 14. Pay arrives on your next birthday.');
     if(!under)html+='<div class="commands">'+(employed?extra.link('career','Professional life','Assignments, certification and salary negotiations.','bag'):'')+extra.link('business','Work for yourself','Contracts, companies and employees.','shop')+'</div>';
     if(!under)html+='<div class="commands roster-link">'+row('sheet','jobs','Job listings','This year’s vacancies, salaries and requirements.','bag')+'</div>';
@@ -373,6 +383,9 @@
       body:'<p class="sheet-intro">New listings arrive on your next birthday.</p><div class="commands">'+rows+'</div>'};
   }
   function parentSheet(tab,key){
+    if(key?.startsWith('mini-intro~'))return 'mini-menu';
+    if(key==='mini-settings')return 'menu';
+    if(key==='mini-warrant')return 'hub-crime';
     if(key?.startsWith('path-')||key?.startsWith('job-'))return pathwaysUI.parent(life,key);
     if(key==='faith-encounter')return 'faith-home';
     if(key?.startsWith('relief-'))return 'household-help';
@@ -455,7 +468,7 @@
   function activitiesPage(){
     if(earlier())return periodActivities()+faithLink();
     const age=life.age,groups=life.sim.prison?['custody','health']:['leisure','health',...(age>=13&&(!life.sim.timeline?.historicalRules||E.calendar(life)>=2004)?['fame']:[]),...(age>=16?['travel']:[]),...(age>=18?['nightlife','pets','crime']:[])];
-    return pageTitle('Activities','Choose how to spend the year.')+noteHtml()+(eraExtras()&&life.age>=4?newEconomy('activities',future()?'Future activities':'Digital life','Technology and leisure in your lifetime.'):'')+'<div class="commands">'+faithLink()+groups.map(hubRow).join('')+extra.link('world','Local economy','Prices and employment in '+G.cities[life.town].name+'.','world-index')+(age>=5&&!life.sim.prison?extra.link('hobbies','Hobbies & ambitions','Practice a skill or pursue a life goal.','sprout'):'')+
+    return pageTitle('Activities','Choose how to spend the year.')+noteHtml()+(eraExtras()&&life.age>=4?newEconomy('activities',future()?'Future activities':'Digital life','Technology and leisure in your lifetime.'):'')+'<div class="commands">'+miniUI.warrantLink(life)+interactive()+faithLink()+groups.map(hubRow).join('')+extra.link('world','Local economy','Prices and employment in '+G.cities[life.town].name+'.','world-index')+(age>=5&&!life.sim.prison?extra.link('hobbies','Hobbies & ambitions','Practice a skill or pursue a life goal.','sprout'):'')+
       (!life.sim.prison?row('tab','people','Spend time with family','Choose a relative to visit.','people')+(!life.ended&&life.age>=18&&(!life.sim.timeline?.historicalRules||E.calendar(life)>=2009)?row('sheet','matches',futureWords()?.match||'Dating app','Browse three local profiles. An introduction costs '+cash(W.introductionCost)+'.','heart',W.isPartner(life)?'In a relationship':''):'')+
       (life.age<18?row('tab','school','Study or find a shift','School, clubs and teen work.','school'):''):'')+'</div>'+
       (life.age>=12?'<div class="social-summary after">'+meter('Reputation',life.world.reputation,'spark')+'</div>':'');
@@ -674,6 +687,7 @@
   const confirms=new Set(['leave-course','resign','apprentice','baby','pet-cat','pet-dog','record-pet-breed','fare','theft','fraud','repay','appeal']);
   function needsConfirm(id){return confirms.has(id)||id.startsWith('course-')||['drop-school','retire-now','surgery','casino','rehab','pickpocket','auto','burglary','robbery'].includes(id);}
   function option(o){
+    if(o.id==='burglary')return miniUI.options(life,'crime');
     return row(needsConfirm(o.id)?'sheet':'sim',needsConfirm(o.id)?'do-'+o.id:o.id,o.title,o.desc,o.icon,o.reason);
   }
   function hubLabel(id){
@@ -685,9 +699,12 @@
     const h=hubs[group]?hubLabel(group):null;if(!h)return null;
     if(earlier()&&!['pets','crime','custody'].includes(group))return null;
     if(group==='fame'&&life.sim.timeline?.historicalRules&&E.calendar(life)<2004)return null;
-    if(group==='travel')return {title:h[0],body:detail('Current home',G.label(life.town))+'<div class="commands">'+
-      row('sheet','license','Take the driving test',S.licenseFee(life)?'The exam costs '+cash(S.licenseFee(life))+'.':'The test is free before age 18.','car',S.licenseReason(life))+
+    if(group==='travel'){
+      const exam=E.minigames.entry(life,'driving');
+      return {title:h[0],body:detail('Current home',G.label(life.town))+'<div class="commands">'+
+      (exam?row('sheet','license','Take the driving test',exam.fee?'The exam costs '+cash(exam.fee)+'.':'The test is free before age 18.','car',exam.reason):'')+
       row('sheet','destinations','Immigrate or move city',future()?'Fares depend on the route and local transit.':'Choose a country and city. Moving costs '+cash(S.moveFare(life))+'.','map',life.ended?'Life complete':life.age<18?'Opens at 18':'')+'</div>'};
+    }
     let intro='';
     if(group==='invest')intro=detail('Invested capital',cash(life.sim.fund)+' · Estimated annual yield '+cash(S.budget(life).yieldIncome));
     if(group==='health'){
@@ -704,12 +721,12 @@
       intro=detail(p.name,(p.type==='dog'?'Dog':'Cat')+' · '+(p.breed||'Breed unrecorded')+' · '+p.years+' '+(p.years===1?'year':'years')+' together');
     }
     if(group==='fame')intro=detail('Your audience',life.sim.account?life.sim.followers.toLocaleString('en-US')+' followers':'You have no social media account.');
-    if(group==='crime')intro=detail('Your record',life.sim.record?life.sim.record+' '+(life.sim.record===1?'conviction':'convictions'):'Clean record');
+    if(group==='crime')intro=detail('Your record',life.sim.record?life.sim.record+' '+(life.sim.record===1?'conviction':'convictions'):'Clean record')+miniUI.warrantLink(life);
     if(group==='custody')intro=detail('Your sentence',life.sim.prison+' '+(life.sim.prison===1?'year remains':'years remain')+' in custody.');
     if(group==='work')intro=detail('Current position',E.occupation(life));
     const rows=group==='leisure'?E.actionList(life).map(a=>row('activity',a[0],a[1],a[2],a[3],E.actionReason(life,a[0],-(a[4].cash||0)))):
       S.options(life,group).filter(o=>!o.id.startsWith('major-')||life.sim.program&&life.sim.program.field==='general').map(option);
-    return {title:h[0],body:intro+'<div class="commands">'+rows.join('')+'</div>'};
+    return {title:h[0],body:intro+'<div class="commands">'+(group==='custody'?miniUI.options(life,'custody'):'')+rows.join('')+'</div>'};
   }
   function breedOptions(breeds,selected=''){
     return '<option value="" disabled'+(selected?'':' selected')+'>'+(breeds.length?'Choose a breed':'No matching breeds')+'</option>'+
@@ -837,6 +854,12 @@
       '<div class="commands">'+prompt.answers.map(([k,t,ic])=>row('interview',id+'~'+k,t,'',ic,why)).join('')+'</div>'};
   }
   function modal(key){
+    if(key==='minigame')return miniUI.play(life,game.settings,endingChallenge);
+    if(key==='mini-menu')return miniUI.directory(life);
+    if(key==='mini-settings')return miniUI.preferences(game.settings);
+    if(key==='mini-warrant')return miniUI.warrant(life);
+    if(key==='license')return miniUI.intro(life,game.settings,'driving');
+    if(key==='do-burglary'||key.startsWith('mini-intro~'))return miniUI.intro(life,game.settings,key==='do-burglary'?'burglary':key.slice(11));
     if(key.startsWith('path-'))return pathwaysUI.sheet(life,key);
     if(key==='faith-encounter'){
       const event=E.faithEncounters.current(life);if(!event)return null;
@@ -895,16 +918,14 @@
     if(key==='death'&&life.ended)return {title:'Life complete',tag:'Generation '+life.sim.generation,body:legacy(life,true)};
     if(key==='checkpoint'){
       const c=disk.checkpoint();
-      return {title:'Save & load · Slot '+disk.current,body:(saveNotice||disk.message?detail('Save status',saveNotice||disk.message):'')+extraSaveRows()+detail('Saved checkpoint',c?c.active.name+' · Age '+c.active.age+' · '+E.historyEconomy.money(c.active,c.active.cash):'No manual save yet.')+
+      return {title:'Save & load · Slot '+disk.current,body:(saveNotice||disk.message?detail('Save status',saveNotice||disk.message):'')+extraSaveRows()+detail('Saved checkpoint',c?c.active.name+' · Age '+c.active.age+' · '+E.historyEconomy.money(c.active,c.active.cash):'No loadable manual checkpoint.')+
        '<div class="commands">'+row('manual-save','','Save this game',c?'Replace the existing checkpoint.':'Keep this character and all past lives.','save')+
-       row('sheet','load-confirm','Load checkpoint','Restore the character, journal and archived lives.','back',c?'':'Save a checkpoint first')+'</div>'};
+       row('sheet','load-confirm','Load checkpoint','Restore the character, journal and archived lives.','back',c?'':'No loadable checkpoint')+'</div>'};
     }
     if(key==='load-confirm')return {title:'Load saved game?',body:detail('Restore checkpoint','Progress since the manual save will be replaced.')+actionButton('manual-load','','Load saved game','primary wide','back')};
     if(key==='net')return {title:'Net worth breakdown',body:detail('Bank balance',cash(life.cash))+detail('Possessions',cash(W.possessions(life)))+detail('Investments',cash(life.sim.fund+X.portfolio(life)))+detail('Business equity',cash(X.companyValue(life)))+detail('In trust',cash(life.sim.trust))+(life.sim.expansion?.dispute?detail('Contested inheritance',cash(life.sim.expansion.dispute.amount)):'')+detail('Outstanding debt',cash(S.debt(life)))+detail('Total net worth',cash(W.netWorth(life)))};
     if(key.startsWith('cutoff-')){const who=key.slice(7),p=life.people[who];if(!p)return null;return {title:'Cut off '+p.name+'?',body:detail('End contact','You will no longer visit or speak to this person.')+actionButton('cutoff',who,'End contact','primary wide','exit')};}
     if(key==='decision')return decisions();
-    if(key==='license')return {title:'Driving test',body:detail('Test fee',S.licenseFee(life)?cash(S.licenseFee(life)):'Free')+detail('Road signs',S.drivingTest.question)+'<div class="commands">'+
-      S.drivingTest.answers.map(([k,t,ic])=>row('license',k,t,'',ic,S.licenseReason(life))).join('')+'</div>'};
     if(key==='destinations'){
       if(life.ended||life.age<18)return null;
       if(!G.cities[movingTown])movingTown=life.town;
@@ -958,7 +979,8 @@
       row('sheet','appearance','Journal appearance',game.settings.theme&&game.settings.theme!=='auto'?'Theme locked':'Follows the calendar','palette')+
       row('sheet','realism','Health & mortality',E.year.realism(life)==='historical'?'Historical mortality':'Guided mortality','heart')+
       row('sheet','motion','Motion settings',game.settings.motion==='reduced'?'Reduced motion':'Use device preference','phone')+
-      row('sheet','checkpoint','Save slots & backups','Switch lives, recover or transfer a save.','save')+row('sheet','help','How to play','Aging, choices and free time.','book')+(game.archive.length?row('sheet','archive','Past lives',game.archive.length+' saved','archive'):'')+'</div><p class="version">Pocket Years · v1.3.0 · Life Expanded</p>'};
+      row('sheet','mini-settings','Minigame settings','Interactive play, difficulty and controls.','dice')+
+      row('sheet','checkpoint','Save slots & backups','Switch lives, recover or transfer a save.','save')+row('sheet','help','How to play','Aging, choices and free time.','book')+(game.archive.length?row('sheet','archive','Past lives',game.archive.length+' saved','archive'):'')+'</div><p class="version">Pocket Years · v1.3.1 · Interactive Life</p>'};
     if(key==='appearance'){
       const selected=game.settings.theme||'auto';
       const themes=[{id:'auto',name:'Follow the calendar',icon:'clock'},...eraUI.themes];
@@ -1007,6 +1029,7 @@
     drag.grip.classList.remove('dragging');drag=null;
   }
   function paintSheet(key,reason){
+    miniUI.stop();
     clearDrag();
     const model=key?modal(key):null;
     if(!model){
@@ -1026,15 +1049,16 @@
       return;
     }
     const locked=!!E.blocking(life);
-    const parent=!locked&&(key.startsWith('path-')||key.startsWith('job-'))?pathwaysUI.parent(life,key):null;
+    const parent=!locked&&(key.startsWith('path-')||key.startsWith('job-')||key.startsWith('mini-'))?parentSheet(activeRoute.tab,key):null;
     const back=parent?actionButton('sheet',parent,'Back','path-back','back'):'';
     const swap=!!openPanel, same=swap&&openPanel.dataset.key===key;
     if(!openPanel){openPanel=document.createElement('div');openPanel.className='shade';overlay.appendChild(openPanel);}
     openPanel.dataset.key=key;
-    openPanel.innerHTML='<section class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" tabindex="-1">'+(locked?'':'<div class="sheet-grip"></div>')+back+'<div class="sheet-head"><div>'+(model.tag?'<div class="eyebrow">'+esc(model.tag)+'</div>':'')+'<h2 id="sheet-title">'+esc(model.title)+'</h2></div>'+(locked?'':actionButton('close','','Close','icon-button sheet-close','close'))+'</div>'+(model.art?image(model.art,'sheet-token'):'')+model.body+'</section>';
+    openPanel.innerHTML='<section class="sheet'+(key==='minigame'?' mini-sheet':'')+'" role="dialog" aria-modal="true" aria-labelledby="sheet-title" tabindex="-1">'+(locked?'':'<div class="sheet-grip"></div>')+back+'<div class="sheet-head"><div>'+(model.tag?'<div class="eyebrow">'+esc(model.tag)+'</div>':'')+'<h2 id="sheet-title">'+esc(model.title)+'</h2></div>'+(locked?'':actionButton('close','','Close','icon-button sheet-close','close'))+'</div>'+(model.art?image(model.art,'sheet-token'):'')+model.body+'</section>';
     const panel=openPanel.querySelector('.sheet');
     document.body.classList.add('dialog-open');panel.focus({preventScroll:true});shell.setAttribute('aria-hidden','true');shell.setAttribute('inert','');
     if(!same)M.open(openPanel,panel,swap);
+    if(key==='minigame')miniUI.arm(life,challengeInput);
     if(same&&reason==='swatch'){const selected=panel.querySelector('button[data-do="swatch"][aria-pressed="true"]');if(selected)selected.focus({preventScroll:true});}
     if(same&&reason==='motion'){const selected=panel.querySelector('button[data-do="motion"][aria-pressed="true"]');if(selected)selected.focus({preventScroll:true});}
   }
@@ -1056,6 +1080,46 @@
     if(!old||old.sheet!==r.sheet||['swatch','shuffle','motion'].includes(reason))paintSheet(r.sheet,reason);
   }
   function extraSaveRows(){return '<div class="commands">'+row('sheet','save-slots','Character slots','Three independent lives with their own autosaves.','people')+row('sheet','recover-confirm','Recover previous autosave','Undo the last saved change in this slot.','back',disk.hasBackup?'':'No previous autosave')+row('export-file','','Export backup file','Save this life and its family archive as JSON.','archive')+row('sheet','file-import','Import backup file','Restore a file from this device.','save')+'</div>';}
+  function paintChallenge(focus){
+    const body=byId('mini-game-content');if(!body)return;
+    miniUI.stop();
+    const map=body.querySelector('[data-mini-map]'),openMap=map&&map.getAttribute('open')!==null;
+    body.innerHTML=miniUI.content(life,game.settings,endingChallenge);
+    if(openMap)body.querySelector('[data-mini-map]')?.setAttribute('open','');
+    if(focus){
+      const next=Array.from(body.querySelectorAll('button[data-do="mini-input"]')).find(el=>!el.disabled&&el.dataset.key===focus&&!el.classList.contains('mini-cell'));
+      if(next)next.focus({preventScroll:true});else openPanel?.querySelector('.sheet')?.focus({preventScroll:true});
+    }
+    miniUI.arm(life,challengeInput);
+  }
+  function commitChallenge(run,focus){
+    const before=E.minigames.revision(life),candidate=JSON.parse(JSON.stringify(life));
+    const result=run(candidate,before);if(!result)return false;
+    if(!disk.saveChallenge({...game,active:candidate},before)){
+      miniUI.stop();say(disk.message||'Could not save the current attempt.');return false;
+    }
+    game.active=life=candidate;endingChallenge=false;
+    const next=E.blocking(life);
+    if(next==='minigame'&&activeRoute?.sheet==='minigame')paintChallenge(focus);
+    else{
+      if(result.receipt)note=result.receipt;
+      go('life',next,next!=='minigame','action');
+      if(result.receipt)say(result.receipt.text);
+    }
+    return true;
+  }
+  function challengeInput(turn,cmd,fromInput=false){
+    const active=E.minigames.current(life);
+    if(activeRoute?.sheet!=='minigame'||!active||active.num!==turn)return false;
+    if(document.hidden&&cmd!=='pause')return pauseChallenge();
+    const command=miniUI.timed(cmd,turn);
+    if(fromInput)miniUI.feedback(game.settings,command,active.board.type);
+    return commitChallenge((candidate)=>E.minigames.input(candidate,turn,command),fromInput?cmd:null);
+  }
+  function pauseChallenge(){
+    const current=E.minigames.active(life);
+    return current&&!current.paused?challengeInput(E.minigames.revision(life),'pause'):false;
+  }
   function switchGame(next){
     if(!next)return false;game=next;life=next.active;previousLife=null;previousStats=null;historyLimit=12;journalLimit=16;journalFilter='highlights';assetSort='recent';note=null;draft=null;movingTown=null;saveNotice='';M.mode(game.settings.motion);
     go('life',E.blocking(life),true,'newlife');return true;
@@ -1099,6 +1163,32 @@
     const act=b.dataset.do,key=b.dataset.key||'';
     if(activeRoute.sheet && (!openPanel || !openPanel.contains(b)))return;
     if(!activeRoute.sheet&&!shell.contains(b))return;
+    if(act==='mini-start'){
+      const [id,n]=key.split('~');
+      if(activeRoute.sheet==='mini-intro~'+id||id==='driving'&&activeRoute.sheet==='license'||id==='burglary'&&activeRoute.sheet==='do-burglary')
+        commitChallenge((candidate)=>E.minigames.start(candidate,id,miniUI.effective(game.settings),Number(n)));
+      return;
+    }
+    if(act==='mini-input'&&activeRoute.sheet==='minigame'){
+      const turn=Number(b.dataset.turn),current=E.minigames.current(life);
+      if(!current||current.num!==turn)return;
+      if(key==='ask-exit'||key==='keep'){if(current.paused){endingChallenge=key==='ask-exit';paintChallenge(endingChallenge?'keep':'ask-exit');}return;}
+      if(key==='exit'&&!endingChallenge)return;
+      challengeInput(turn,key,true);
+      return;
+    }
+    if(act==='mini-pref'&&activeRoute.sheet==='mini-settings'){
+      if(miniUI.preference(game.settings,key)){
+        M.mode(game.settings.motion);persist();paintSheet('mini-settings','setting');
+        const again=Array.from(openPanel.querySelectorAll('button[data-do="mini-pref"]')).find(el=>el.dataset.key===key);if(again)again.focus({preventScroll:true});
+        say('Minigame preference saved.');
+      }
+      return;
+    }
+    if(act==='mini-surrender'&&activeRoute.sheet==='mini-warrant'){
+      commitChallenge(c=>{const result=E.minigames.surrender(c,Number(key));return result?{receipt:result}:null;});
+      return;
+    }
     if(act.startsWith('path-')){
       if(act==='path-apply'){
         const [id,method]=key.split('~');
@@ -1133,8 +1223,8 @@
     }
     if(act==='asset-sort'&&['recent','value','condition','name'].includes(key)){assetSort=key;display(activeRoute,'filter');return;}
     if(act==='slot'&&activeRoute.sheet==='save-slots'){if(switchGame(disk.select(Number(key),game)))say('Switched to slot '+disk.current+'.');else say(disk.message||'Could not switch slots.');return;}
-    if(act==='save-recover'&&activeRoute.sheet==='recover-confirm'){if(switchGame(disk.recover()))say('Previous autosave recovered.');return;}
-    if(act==='export-file'&&activeRoute.sheet==='checkpoint'){
+    if(act==='save-recover'&&activeRoute.sheet==='recover-confirm'){if(switchGame(disk.recover()))say('Previous autosave recovered.');else say(disk.message||'Could not recover the autosave.');return;}
+    if(act==='export-file'&&(activeRoute.sheet==='checkpoint'||activeRoute.sheet==='minigame'&&E.minigames.active(life)?.paused)){
       const json=disk.exportFile(game);
       if(window.PocketFiles)window.PocketFiles.exportFile(json);
       else{const url=URL.createObjectURL(new Blob([json],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download='Pocket-Years-backup.json';document.body.appendChild(a);a.click();a.remove();window.setTimeout(()=>URL.revokeObjectURL(url),1500);}
@@ -1152,7 +1242,7 @@
       if(disk.manual(game)){paintSheet('checkpoint','saved');say('Manual checkpoint saved.');}else{say('Could not save the checkpoint.');paintSheet('checkpoint','saved');}return;
     }
     if(act==='manual-load'&&activeRoute.sheet==='load-confirm'){
-      const restored=disk.restore();if(!restored){say('Could not load this checkpoint.');return;}
+      const restored=disk.restore();if(!restored){say(disk.message||'Could not load this checkpoint.');return;}
       game=restored;life=game.active;previousLife=null;previousStats=null;historyLimit=12;note=null;M.mode(game.settings.motion);go('life',null,true,'newlife');say('Checkpoint restored.');return;
     }
     if(act==='random-life'&&(life.ended||activeRoute.sheet==='random-confirm')){startLife(E.makeLife({birthYear:2026}));return;}
@@ -1189,7 +1279,6 @@
     if(act==='more'){journalLimit+=18;display(activeRoute,'filter');return;}
     if(act==='filter'){journalFilter=key;journalLimit=16;display(activeRoute,'filter');return;}
     if(act==='career'){applyResult(W.career(life,key));return;}
-    if(act==='license'&&activeRoute.sheet==='license'){applyResult(S.takeTest(life,key));return;}
     if(act==='move'&&activeRoute.sheet==='move-'+key){applyResult(S.relocate(life,key));return;}
     if(act==='interview'){
       const [id,answer]=key.split('~');if(activeRoute.sheet==='job-'+id)applyResult(W.interview(life,id,answer));return;
@@ -1199,7 +1288,7 @@
       const [id,method]=key.split('~');if(activeRoute.sheet!=='do-'+id)return;
       const result=S.perform(life,id,method);if(result&&result.declined){note=result;persist();paintSheet(activeRoute.sheet,'funding');say(result.text);}else applyResult(result);return;
     }
-    if(act==='sim'&&(!needsConfirm(key)||activeRoute.sheet==='do-'+key)){applyResult(S.perform(life,key));return;}
+    if(act==='sim'&&key!=='burglary'&&(!needsConfirm(key)||activeRoute.sheet==='do-'+key)){applyResult(S.perform(life,key));return;}
     if(act==='plea'&&activeRoute.sheet==='court'){applyResult(S.court(life,key));return;}
     if(act==='will'&&activeRoute.sheet==='will'){applyResult(S.setWill(life,key));return;}
     if(act==='heir'&&activeRoute.sheet==='heir-'+key){startLife(E.continueAs(life,key));return;}
@@ -1320,6 +1409,14 @@
   document.addEventListener('pointercancel',ev=>finishDrag(ev,true));
   document.addEventListener('keydown',ev=>{
     if(!openPanel)return;
+    if(activeRoute?.sheet==='minigame'){
+      if(ev.key==='Escape'){ev.preventDefault();pauseChallenge();return;}
+      const dir={ArrowUp:'up',ArrowDown:'down',ArrowLeft:'left',ArrowRight:'right'}[ev.key];
+      const board=E.minigames.current(life)?.board;
+      if(dir&&(board?.type==='grid'||board?.type==='training')){
+        ev.preventDefault();if(!ev.repeat)challengeInput(E.minigames.revision(life),dir);return;
+      }
+    }
     if(ev.key==='Enter'&&document.activeElement===byId('place-search')&&byId('place-search')){
       ev.preventDefault();const first=byId('place-results').querySelector('button[data-do="place-hit"]');
       if(first)applyPlaceHit(first.dataset.key);return;
@@ -1339,6 +1436,15 @@
     }
   });
   window.addEventListener('popstate',onHistory);window.addEventListener('hashchange',onHistory);
-  if(!location.hash)writeRoute({tab:'life',sheet:life.ended?'death':E.blocking(life)},true);
-  M.mode(game.settings.motion);persist();mount();display(readRoute(),'initial');window.pocketFileReady();
+  document.addEventListener('visibilitychange',()=>{if(document.hidden)pauseChallenge();});
+  window.addEventListener('pagehide',pauseChallenge);
+  window.addEventListener('blur',pauseChallenge);
+  if(E.minigames.active(life)){
+    // Rebuilt WebViews get a physical Back entry even when they opened directly into a resumed attempt.
+    writeRoute({tab:'life',sheet:null},true);
+    writeRoute({tab:'life',sheet:'minigame'},false);
+  }else if(!location.hash)writeRoute({tab:'life',sheet:life.ended?'death':E.blocking(life)},true);
+  M.mode(game.settings.motion);persist();mount();display(readRoute(),'initial');
+  if(E.minigames.active(life))pauseChallenge();
+  window.pocketFileReady();
 })();

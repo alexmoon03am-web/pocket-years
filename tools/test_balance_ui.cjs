@@ -1,4 +1,5 @@
 'use strict';
+const {takeExam}=require('./minigame_test_helpers.cjs');
 const assert=require('node:assert/strict'),path=require('node:path');
 const {start,base}=require('./interface_host.cjs'),E=require(path.join(base,'engine.js')).PocketEngine;
 const slot='studio.pocketyears.save.v1';
@@ -24,7 +25,7 @@ assert.equal(state(u).cash,3965);assert.match(state(u).log.at(-1).body,/35 credi
 assert.equal(state(u).name,'Cedar $42');
 u=boot(future,'#activities/hub-travel');
 assert.match(u.button('sheet','license').textContent,/30 credits/);u.click('sheet','license');
-assert.match(text(u),/Test fee30 credits/);u.click('license','stop');wait(u);
+assert.match(text(u),/Test fee30 credits/);u.click('mini-start','driving~0');takeExam(u);u.click('ack','minigame');wait(u);
 assert.equal(state(u).cash,3970);
 u=boot(future,'#activities/match-0');
 assert.match(u.button('match','0').textContent,/15 credits/);
@@ -46,8 +47,8 @@ u=boot(employee,'#career/hub-work');u.click('sim','raise');wait(u);
 const raised=state(u);
 assert(raised.extraPay>0);
 assert(raised.log.at(-1).body.includes(E.historyEconomy.money(raised,E.expansion.economy.salary(raised,raised.job,E.jobs))));
-const under=life(2085,16);u=boot(under,'#activities/license');assert(text(u).includes('Test feeFree'));
-u.click('license','stop');wait(u);assert.equal(state(u).cash,under.cash);
+const under=life(2085,17);u=boot(under,'#activities/license');assert(text(u).includes('Test feeFree'));
+u.click('mini-start','driving~0');takeExam(u);u.click('ack','minigame');wait(u);assert.equal(state(u).cash,under.cash);
 const poor=life(2085,25,0);u=boot(poor,'#activities/hub-travel');
 assert(u.button('sheet','license').disabled&&u.button('sheet','license').textContent.includes('30 credits'));
 u=boot(life(2024,26),'#assets/budget');
