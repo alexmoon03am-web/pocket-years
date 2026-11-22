@@ -277,12 +277,12 @@
     }
     return life;
   }
-  function blocking(l){if(!l.sim)return null;if(l.sim.review)return 'outcome';if(l.sim.court)return 'court';if(minigames.active(l))return 'minigame';return l.event&&!l.event.resolved?'decision':null;}
+  function blocking(l){if(!l.sim)return null;if(l.sim.review)return 'outcome';if(l.sim.court)return 'court';if(minigames.active(l))return 'minigame';return l.event&&!l.event.resolved&&events.allowedInCustody(l,stories[l.event.id])?'decision':null;}
   function acknowledge(l){
     if(!l.sim.review)return false;
     l.sim.review=null;
     while(l.eventQueue.length){
-      const next=l.eventQueue.shift();if(!next.person||l.people[next.person]&&model.isAlive(l.people[next.person])){
+      const next=l.eventQueue.shift();if(events.allowedInCustody(l,stories[next.id])&&(!next.person||l.people[next.person]&&model.isAlive(l.people[next.person]))){
         if(!stories[next.id].random||events.eligible(l,stories[next.id])){l.event=next;return true;}
       }
     }
@@ -393,7 +393,7 @@
     if(life.ended)return 'Life complete';
     if(blocking(life))return 'Finish the current decision';
     const wanted=minigameRules.blockedReason(life,null,key);if(wanted)return wanted;
-    if(life.sim && life.sim.prison && !key.startsWith('visit-')&&!key.startsWith('social-')&&!['sim-doctor','sim-library','sim-yard','sim-appeal'].includes(key))return 'In custody';
+    if(life.sim && life.sim.prison && !key.startsWith('visit-')&&!['sim-doctor','sim-library','sim-yard','sim-appeal'].includes(key))return 'In custody';
     const repeat=['move','read','play','career-study','career-practice','sim-meditate'].includes(key)||key.startsWith('visit-');
     if(life.used.filter(id=>id===key).length>=(repeat?3:1))return repeat?'Try again next year':'Done this year';
     if(cost>life.cash)return 'Need '+(life.sim.timeline?.historicalRules?historyEconomy.money(life,cost):'$'+cost);

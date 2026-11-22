@@ -1,3 +1,10 @@
+# Pocket Years v1.3.2 · Custody social fixes
+
+- In custody, the Relationships screen offers supervised visits with individual contacts. Dating, gifts, group visits and home gatherings resume after release.
+- The prison lunch event now clearly takes place in the dining hall. Outside social events from older saves stay out of custody gameplay.
+
+[Development pull request](https://github.com/alexmoon03am-web/pocket-years/pull/2)
+
 # Pocket Years v1.3.1 · Interactive Life
 
 - Play Prison Escape, Burglary, a two-part Driving Test and career puzzles. Results go straight to your sentence, court record, license, household accounts or job performance.

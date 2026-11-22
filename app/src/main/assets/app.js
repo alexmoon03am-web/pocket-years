@@ -238,7 +238,7 @@
     if(disc.dataset.symbol!==visual){disc.dataset.symbol=visual;disc.innerHTML=icon(visual);}
     const label=life.ended?'Next life':life.sim.court?'Hearing':'Age +';
     setText('age-label',label);
-    main.setAttribute('aria-label',life.ended?'Choose your next life':life.sim.court?'Attend your hearing':!life.event.resolved&&!life.event.optional?'Age up, answer the current decision':'Age up one year');
+    main.setAttribute('aria-label',life.ended?'Choose your next life':life.sim.court?'Attend your hearing':E.blocking(life)==='decision'?'Age up, answer the current decision':'Age up one year');
   }
   function token(event){
     if(!event)return 'token-letter';
@@ -440,12 +440,14 @@
   }
   function peoplePage(){
     let html=pageTitle('Relationships','')+noteHtml()+'<div class="commands">';
-    if(!life.ended){
+    if(!life.ended&&life.sim.prison)html+=detail('Visiting hours','Choose a person to request a supervised visit.');
+    if(!life.ended&&!life.sim.prison){
       const plan=W.visitPlan(life),count=plan.keys.length;
       const description=count?(count===1?'1 person is':count+' people are')+' available. Uses one visit per person.':'Visits are available up to three times per person each year.';
       html+=row('visit-all','','Spend time with all',description,'people',plan.reason);
     }
-    html+=extra.link('family','Family tree & gatherings','Family links, celebrations and decisions.','family-tree')+'</div>';
+    html+=extra.link('family',life.sim.prison?'Family tree':'Family tree & gatherings',
+      life.sim.prison?'See family connections and history.':'Family links, celebrations and decisions.','family-tree')+'</div>';
     const buckets=new Map([['Partner',[]],['Family',[]],['Friends',[]],['At work',[]],['Past relationships',[]]]);
     for(const [key,p] of Object.entries(life.people)){
       if(!p.met||['Classmate','Teacher','Former classmate','Former teacher'].includes(p.role))continue;
@@ -456,8 +458,8 @@
       if(!group.length)continue;
       html+=subhead(title)+'<div class="commands">'+group.map(([k,p])=>personRow(k,p)).join('')+'</div>';
     }
-    if(!life.ended&&life.age>=5)html+=subhead('Friendship')+'<div class="commands">'+S.options(life,'company').map(option).join('')+'</div>';
-    if(!life.ended && life.age>=14){
+    if(!life.ended&&!life.sim.prison&&life.age>=5)html+=subhead('Friendship')+'<div class="commands">'+S.options(life,'company').map(option).join('')+'</div>';
+    if(!life.ended&&!life.sim.prison&&life.age>=14){
       html+=subhead('Love and family')+'<div class="commands">'+row('sheet','date','Go on a date',earlier()?'Meet someone on a walk through town.':life.age<18?'Meet someone for a walk after school.':'Meet someone over coffee for '+cash(W.dateCost(life))+'.','heart',W.dateReason(life));
       if(life.age>=18)html+=S.options(life,'family').map(option).join('');
       if(life.age>=21)html+=row('sheet','adopt','Adopt a child','Choose a name and prepare a room. Costs '+cash(W.familyCost(life))+'.','baby',W.familyReason(life));
@@ -621,7 +623,7 @@
     if(!p.active)body+=detail('Status',p.diedAt!==undefined?'Deceased':p.cutOff?'Contact ended':'Past relationship');
     else body+='<div class="commands">'+options.map(o=>o.id==='separate'?row('sheet','separate',o.title,o.desc,o.icon,o.reason):
       o.id==='cutoff'?row('sheet','cutoff-'+key,o.title,o.desc,o.icon,o.reason):row('social',key+'~'+o.id,o.title,o.desc,o.icon,o.reason)).join('')+
-      (key==='love'&&W.isPartner(life)&&life.age>=18?S.options(life,'family').map(option).join(''):'')+'</div>';
+      (key==='love'&&W.isPartner(life)&&life.age>=18&&!life.sim.prison?S.options(life,'family').map(option).join(''):'')+'</div>';
     body+=row('sheet','faith-npc~'+key,'Beliefs & traditions',E.faithPersonal.npc(life,key).name,'book');
     body+=extra.link('relative','Trust & shared history','Memories, promises and family decisions.','family-tree',key);
     return {title:p.fullName,tag:label,body};
@@ -925,7 +927,7 @@
     if(key==='load-confirm')return {title:'Load saved game?',body:detail('Restore checkpoint','Progress since the manual save will be replaced.')+actionButton('manual-load','','Load saved game','primary wide','back')};
     if(key==='net')return {title:'Net worth breakdown',body:detail('Bank balance',cash(life.cash))+detail('Possessions',cash(W.possessions(life)))+detail('Investments',cash(life.sim.fund+X.portfolio(life)))+detail('Business equity',cash(X.companyValue(life)))+detail('In trust',cash(life.sim.trust))+(life.sim.expansion?.dispute?detail('Contested inheritance',cash(life.sim.expansion.dispute.amount)):'')+detail('Outstanding debt',cash(S.debt(life)))+detail('Total net worth',cash(W.netWorth(life)))};
     if(key.startsWith('cutoff-')){const who=key.slice(7),p=life.people[who];if(!p)return null;return {title:'Cut off '+p.name+'?',body:detail('End contact','You will no longer visit or speak to this person.')+actionButton('cutoff',who,'End contact','primary wide','exit')};}
-    if(key==='decision')return decisions();
+    if(key==='decision')return E.blocking(life)==='decision'?decisions():null;
     if(key==='destinations'){
       if(life.ended||life.age<18)return null;
       if(!G.cities[movingTown])movingTown=life.town;
@@ -980,7 +982,7 @@
       row('sheet','realism','Health & mortality',E.year.realism(life)==='historical'?'Historical mortality':'Guided mortality','heart')+
       row('sheet','motion','Motion settings',game.settings.motion==='reduced'?'Reduced motion':'Use device preference','phone')+
       row('sheet','mini-settings','Minigame settings','Interactive play, difficulty and controls.','dice')+
-      row('sheet','checkpoint','Save slots & backups','Switch lives, recover or transfer a save.','save')+row('sheet','help','How to play','Aging, choices and free time.','book')+(game.archive.length?row('sheet','archive','Past lives',game.archive.length+' saved','archive'):'')+'</div><p class="version">Pocket Years · v1.3.1 · Interactive Life</p>'};
+      row('sheet','checkpoint','Save slots & backups','Switch lives, recover or transfer a save.','save')+row('sheet','help','How to play','Aging, choices and free time.','book')+(game.archive.length?row('sheet','archive','Past lives',game.archive.length+' saved','archive'):'')+'</div><p class="version">Pocket Years · v1.3.2 · Interactive Life</p>'};
     if(key==='appearance'){
       const selected=game.settings.theme||'auto';
       const themes=[{id:'auto',name:'Follow the calendar',icon:'clock'},...eraUI.themes];
@@ -1145,7 +1147,7 @@
   function advance(){
     if(life.ended){showSheet('death');return;}
     if(life.sim.court){showSheet('court');return;}
-    if(!life.event.resolved&&!life.event.optional){showSheet('decision');return;}
+    if(E.blocking(life)==='decision'){showSheet('decision');return;}
     if(!E.advance(life))return;
     historyLimit=12;note=null;persist();
     const next=life.ended?'death':E.blocking(life);if(next)go('life',next,false,'age');else display({tab:'life',sheet:null},'age');

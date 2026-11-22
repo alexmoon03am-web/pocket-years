@@ -46,7 +46,7 @@
           const p=keys.get(n.id),role=n.id===l.id?'You':p?l.people[p].role:X.kin.relationship(tree,l.id,n.id);
           const desc=[role,'born '+n.born,n.died?'died '+n.died:'',parents.length?'Child of '+parents.join(' and '):'',spouse?'Married to '+spouse:''].filter(Boolean).join(' · ');
           return p?row('sheet','person-'+p,n.name,desc,'people'):link('branch',n.name,desc,'family-tree',n.id);
-        }).join(''))+subhead('Family decisions');
+        }).join(''))+(l.sim.prison?'':subhead('Family decisions'));
       }
       if(area==='branch'){
         const tree=x.family,n=tree[ref];if(!n)return null;title=n.name;
@@ -92,7 +92,7 @@
         body=economic(l,ref)+detail('Status',p.citizen?'Citizen':p.permanent?'Permanent resident':p.valid?p.permit.kind+' through '+p.permit.until:'No current permit')+
           detail('Citizenships',x.passports.map(label).join(', '))+detail('Settlement route',p.eligible?'Eligible for settlement clearance with the moving fee.':p.reason)+detail('Requirements','Game immigration rules use work, qualifications, savings, residence and recent convictions.');
       }
-      const choices=X.actions(l,area,ref);
+      const choices=l.sim.prison&&['family','relative'].includes(area)?[]:X.actions(l,area,ref);
       body+=wrap(choices.map(o=>{
         const confirm=o.id==='sell'||o.id.startsWith('trade-')||o.id==='finance'||o.id.startsWith('open-');
         return row(confirm?'sheet':'xp-run',confirm?route('confirm',area+'~'+ref+'~'+o.id):o.id,o.title,o.description,o.icon,o.reason);
