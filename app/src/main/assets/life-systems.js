@@ -50,6 +50,7 @@
   const places=geography.places;
   const node=typeof module!=='undefined'&&module.exports;
   const era=node?require('./history-economy.js').PocketHistoryEconomy:root.PocketHistoryEconomy;
+  const education=node?require('./education.js').PocketEducation:root.PocketEducation;
   const future=node?require('./future-epochs.js').PocketFuture:root.PocketFuture;
   const historicWorld=node?require('./history-world.js').PocketHistoryWorld:root.PocketHistoryWorld;
   const sharedGroups=new Set(['company','family','money','pets','custody']);
@@ -100,9 +101,11 @@
       const at=Number.isInteger(p.diedAt)?p.diedAt:l.age;
       return Number.isInteger(p.bornAt)?at-p.bornAt:Number.isInteger(p.bornYear)?l.born+at-p.bornYear:null;
     }
-    function addLoan(l,id,amount,years){
+    function addLoan(l,id,amount,years,preserveSchedule=false){
       const prior=l.sim.loans[id],balance=amount+(prior?prior.balance:0);
-      l.sim.loans[id]={balance,principal:Math.ceil(balance/years)};
+      if(prior&&preserveSchedule){
+        prior.balance=balance;prior.principal+=Math.ceil(amount/years);
+      }else l.sim.loans[id]={balance,principal:Math.ceil(balance/years)};
     }
     const {budget,settle,hardshipOptions,relief,reliefPreview,validateFinance,plan:estate,tax}=ledgerFactory.create(world,jobs,ageOf,{log,apply,blocking:api.blocking});
     function downPayment(item){return Math.ceil(item.price/5);}
@@ -145,7 +148,7 @@
       if(l.sim.professional===programs[field].degree||l.sim.degree===programs[field].degree)return 'Already qualified';
       if(field==='medicine'||field==='law'){
         if(!l.sim.degree)return 'Undergraduate degree required';
-        if(field==='medicine'&&!['Science','General studies'].includes(l.sim.degree))return 'Science degree required';
+        if(field==='medicine'&&!['Science','General studies'].includes(l.sim.degree)&&!['science','nursing','health'].some(f=>education.hasCredential(l,f,'bachelor')))return 'Science degree required';
         if(l.stats.smarts<60)return 'Needs 60% smarts';
       }
       return '';
@@ -178,7 +181,7 @@
     add('leave-course','education','Leave your course','exit','Withdraw and look for work. Outstanding tuition stays on your account.',l=>{
       l.sim.program=null;l.track=l.sim.degree?'college':'gap';world.changeJob(l,null,true);
       return finish(l,'leave-course','School','Withdrew from school','I collected my transcript and cleared out my locker.');
-    },l=>!l.sim.program?'Not enrolled':'');
+    },l=>!l.sim.program?'Not enrolled':l.sim.program.pathway?'Use your current program to withdraw':'');
     add('resign','work','Resign from your job','exit','Your next birthday will have no wages from this job.',l=>{
       const name=jobs[l.job][0];world.changeJob(l,null,true);
       return finish(l,'resign','Career','Resigned','I handed in my notice as a '+name.toLowerCase()+'.');
@@ -312,7 +315,9 @@
       const before=M.metrics(l,world.netWorth,budget),result=actions[id].run(l,input);
       if(!result)return null;
       if(id==='gym')l.sim.habits.exercise+=3;if(id==='meditate')apply(l,{willpower:2});
-      api.campus(l);result.delta=M.diff(before,M.metrics(l,world.netWorth,budget));l.log[l.log.length-1].delta=result.delta;return result;
+      api.campus(l);result.delta=M.diff(before,M.metrics(l,world.netWorth,budget));l.log[l.log.length-1].delta=result.delta;
+      if(id==='skip-class')api.schoolAbsence(l);
+      return result;
     }
     function court(l,plea){
       const c=l.sim.court;if(!c||l.ended||!['plea','trial','counsel'].includes(plea))return null;
@@ -343,7 +348,8 @@
     function birthday(l){
       const s=l.sim;
       if(s.prison){s.prison--;if(!s.prison)log(l,'Justice','Released from custody','The gate opened. My sentence was served.');}
-      if(s.program&&l.age>=s.program.end){
+      if(s.program?.pathway)education.annual(l,{world,apply,log,campus:api.campus});
+      else if(s.program&&l.age>=s.program.end){
         const field=s.program.field,degree=programs[field]?programs[field].degree:'General studies';s.program=null;
         if(['medicine','law'].includes(field))s.professional=degree;else s.degree=degree;if(!s.degrees.includes(degree))s.degrees.push(degree);
         if(l.world.credential==='trade')l.world.tradeQualified=true;

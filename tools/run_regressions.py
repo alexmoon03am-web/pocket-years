@@ -27,7 +27,8 @@ def main():
         preview(standalone, args.assets.resolve())
         env = {**os.environ, 'POCKET_ASSET_DIR': str(args.assets.resolve()),
                'POCKET_PREVIEW': str(standalone)}
-        suites = sorted(tools.glob('test_*.cjs')) + [tools / 'test_backup_picker.py']
+        suites = (sorted(tools.glob('test_*.cjs')) + sorted((root / 'qa/v1.3').glob('test_*.cjs'))
+                  + [tools / 'test_backup_picker.py'])
 
         def run(suite):
             command = ['node' if suite.suffix == '.cjs' else sys.executable, str(suite)]

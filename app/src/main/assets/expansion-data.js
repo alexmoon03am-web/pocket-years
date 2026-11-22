@@ -43,7 +43,9 @@
     Services:['Service desk','Resolve a difficult request','Back a junior colleague','Cover a busy weekend','Service leadership','people']
   };
   // Title, annual base salary, employer, qualification, minimum smarts, sector, job-specific assignment.
+  const occupations=typeof module!=='undefined'&&module.exports?require('./occupations.js').PocketOccupations:root.PocketOccupations;
   const professions={
+    ...occupations.professions,
     architect:['Architect',85000,'Northline Studio','college',65,'Creative','Redesign an inaccessible entrance'],
     urbanist:['Urban planner',69200,'Planning Bureau','college',55,'Services','Hold a zoning hearing'],
     engineer:['Civil engineer',92500,'Span Works','science',60,'Industry','Inspect a bridge expansion joint'],

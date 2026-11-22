@@ -2,6 +2,7 @@
   'use strict';
   const M=typeof module!=='undefined'&&module.exports?require('./model.js').PocketModel:root.PocketModel;
   const data=typeof module!=='undefined'&&module.exports?require('./expansion-data.js').PocketExpansionData:root.PocketExpansionData;
+  function pathways(){return typeof module!=='undefined'&&module.exports?require('./pathways-stories.js').PocketPathwaysStories:root.PocketPathwaysStories;}
   function stat(l,key){
     if(key==='happiness')return l.stats.joy;if(key==='jobPerformance')return l.world.performance;
     if(key==='grade')return l.world.grade;
@@ -11,6 +12,8 @@
   function fitsYear(l,event){
     if(!event)return false;
     const historic=!!l.sim.timeline?.historicalRules,y=l.born+l.age;
+    // New choices use the actual calendar even in a life imported before the timeline expansion.
+    if(event.id?.startsWith('path-')&&(y<event.minYear||y>event.maxYear))return false;
     const eraEvent=typeof event.id==='string'&&event.id.startsWith('era_');
     if(eraEvent&&!historic)return false;
     if(!historic)return true;
@@ -21,6 +24,7 @@
   function eligible(l,event){
     if(!fitsYear(l,event))return false;
     const r=event.rule||{};
+    if(r.pathGate&&!pathways().eligible(l,r.pathGate))return false;
     if((r.minAge!==undefined&&l.age<r.minAge)||(r.maxAge!==undefined&&l.age>r.maxAge))return false;
     if(r.lifeStage&&!r.lifeStage.includes(M.stage(l)))return false;
     if(l.sim.prison&&!(r.lifeStage||[]).includes('prison'))return false;

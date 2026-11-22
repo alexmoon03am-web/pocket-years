@@ -674,7 +674,8 @@
   ];
   const more=typeof module!=='undefined'&&module.exports?require('./expansion-stories.js').PocketExpansionStories:root.PocketExpansionStories;
   const historical=typeof module!=='undefined'&&module.exports?require('./history-stories.js').PocketHistoryStories:root.PocketHistoryStories;
-  list.push(...more.list,...historical.list);
+  const pathways=typeof module!=='undefined'&&module.exports?require('./pathways-stories.js').PocketPathwaysStories:root.PocketPathwaysStories;
+  list.push(...more.list,...historical.list,...pathways.list);
   const stories={};for(const event of list)stories[event.id]=event;
   root.PocketStories={stories,list};
 })(typeof module!=='undefined'&&module.exports?module.exports:window);

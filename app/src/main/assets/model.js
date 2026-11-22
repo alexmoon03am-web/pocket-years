@@ -66,6 +66,12 @@
     people(l);
   }
   function school(l){
+    if(l.sim.program?.pathway||!l.sim.program&&l.sim.transcript?.length){
+      const catalog=node?require('./education.js').PocketEducation:root.PocketEducation;
+      const place=catalog.school(l);if(place)return place;
+      const qualification=catalog.attainment(l);if(qualification)return {level:qualification.title,name:null};
+    }
+    if(l.age>=3&&l.age<5&&!l.sim.dropped&&(!historical(l)||l.born+l.age>=1970))return {level:'Preschool',name:'Neighborhood preschool'};
     if(historical(l)){
       const year=l.born+l.age;
       if(year<1900){
@@ -111,8 +117,8 @@
     return {id:l.id,firstName:names[0],lastName:names.slice(1).join(' '),gender:s.identity,country:historicalPlace?historicalPlace.country:sim.geography.stateCountry(l.town),city:historicalPlace?historicalPlace.city:place.name,age:l.age,alive:!l.ended,causeOfDeath:s.cause||null,
       bankBalance:l.cash,debt:sim.debt(l),monthlyExpenses:Math.round((b.living+b.housing+b.dependents+b.upkeep+b.payment+(b.insurance||0)+(b.management||0)+(b.lifestyle||0)+(b.operatingLoss||0))/12),netWorth:world.netWorth(l),
       stats:{happiness:l.stats.joy,health:l.stats.health,smarts:l.stats.smarts,looks:l.stats.looks},hiddenStats:{...l.hidden},
-      educationLevel:schoolInfo.level,currentSchool:schoolInfo.name,major:s.program?s.program.field:s.degree,gpa:Math.round(w.grade*4)/100,schoolActivities:s.activities,
-      jobTitle:periodShift?economy().shiftName(l):shift?shift[0]:job?job[0]:null,employer:periodShift?'Local household':shift?world.partEmployers[w.partJob]:(s.expansion?.employer||employer),salary:b.wages,jobPerformance:w.performance,yearsAtJob:shift?Math.max(0,l.age-w.partSince):job&&!['student','retired'].includes(l.job)?Math.max(0,l.age-w.since):0,retired:l.job==='retired',
+      educationLevel:schoolInfo.level,currentSchool:schoolInfo.name,major:s.program?.pathway?schoolInfo.level:s.program?s.program.field:s.degree,gpa:Math.round(w.grade*4)/100,schoolActivities:s.activities,
+      jobTitle:s.program?.pathway?schoolInfo.level+' student':periodShift?economy().shiftName(l):shift?shift[0]:job?job[0]:null,employer:periodShift?'Local household':shift?world.partEmployers[w.partJob]:(s.expansion?.employer||employer),salary:b.wages,jobPerformance:w.performance,yearsAtJob:shift?Math.max(0,l.age-w.partSince):job&&!['student','retired'].includes(l.job)?Math.max(0,l.age-w.since):0,retired:l.job==='retired'||s.studyPension!==undefined,
       criminalRecord:s.offenses,inPrison:s.prison>0,prisonSentenceYears:s.prison,illnesses:s.illnesses,injuries:s.injuries,addictions:s.addictions,lifeTags:s.lifeTags,
       npcs:Object.entries(l.people).map(([k,p])=>npc(l,k,p))};
   }

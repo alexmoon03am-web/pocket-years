@@ -4,6 +4,7 @@
   const M=typeof module!=='undefined'&&module.exports?require('./model.js').PocketModel:root.PocketModel;
   const G=typeof module!=='undefined'&&module.exports?require('./geography.js').PocketGeography:root.PocketGeography;
   const H=typeof module!=='undefined'&&module.exports?require('./history-economy.js').PocketHistoryEconomy:root.PocketHistoryEconomy;
+  const occupations=typeof module!=='undefined'&&module.exports?require('./occupations.js').PocketOccupations:root.PocketOccupations;
   const Future=typeof module!=='undefined'&&module.exports?require('./future-epochs.js').PocketFuture:root.PocketFuture;
   const groups=[
     ['US CA AU NZ DE GB FR NL BE AT SE DK NO FI IE CH IS LU JP KR SG HK MO QA AE IL',1.12,1.10],
@@ -72,6 +73,22 @@
     }
     if(cache.size>1800)cache.clear();cache.set(cacheKey,profile);return profile;
   }
+  // New listings carry a stable offer within a pay band. A candidate's role aptitude
+  // and talent persist for life. Each local employer also has its own departmental
+  // budget. The calendar, action counter, interview roll and bank balance cannot
+  // reroll these terms. Annual market movement still reaches pay through wageIndex.
+  const sectorTalents={Care:'People',Technology:'Curiosity',Industry:'Craft',Creative:'Music',Commerce:'Numbers',Services:'People'};
+  function offerTown(l,job){
+    return job===l.job && Object.hasOwn(G.cities,l.world.offerTown) ? l.world.offerTown : l.town;
+  }
+  function offerFactor(l,entry){
+    const aptitude=sample(l.id,'occupational aptitude/'+entry.id);
+    const budget=sample(offerTown(l,entry.id),entry.employer+'/pay scale/'+entry.id);
+    const talent=entry.category==='Sport & recreation'||entry.category==='Uniformed service'?'Endurance':sectorTalents[entry.sector];
+    // Most offers sit below the catalog reference; a well-matched role at an
+    // employer with a larger budget can approach or narrowly exceed that rate.
+    return .71+.25*aptitude+.055*budget+(l.sim.expansion?.talent === talent ? .025 : 0);
+  }
   function contractBase(l,job,jobs){
     const base=jobs[job]?.[1]||0;
     // Existing contracts retain their agreed salary when an older save is opened.
@@ -82,7 +99,9 @@
     else if(['director','executive'].includes(job)){entry=.76;step=.018;}
     else if(base>=65000){entry=.70;step=.021;}
     else if(base>=40000){entry=.77;step=.015;}
-    return Math.round(base*Math.min(1,entry+step*experience));
+    const role=occupations.entries[job];
+    const factor=role?offerFactor(l,role):1;
+    return Math.round(base*Math.min(1,entry+step*experience)*factor);
   }
   function wageIndex(l,town=l.town,age=l.age){
     const market=local(l,town,age),seed=l.sim.expansion?.seed||l.id;
@@ -112,7 +131,8 @@
     // Job-table salaries are quoted in 2016 units. Apply local changes from that
     // reference date; a worker carrying an older contract keeps its original basis.
     const established=job===l.job&&l.world.contractRole!==job;
-    const factor=established?existingWageIndex(l,age):wageIndex(l,l.town,age);
+    const town=occupations.entries[job]?offerTown(l,job):l.town;
+    const factor=established?existingWageIndex(l,age):wageIndex(l,town,age);
     return H.contractPay(l,job,base*factor);
   }
   function nationality(l){return l.sim.expansion?l.sim.expansion.passports:[keyOf(l,l.sim.birthplace||l.town)];}

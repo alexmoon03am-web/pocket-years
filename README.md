@@ -1,3 +1,14 @@
+# Pocket Years v1.3.0 — Life Expanded
+
+- School now starts with preschool in supported periods. Meet your classmates, join a group, resolve a dispute, and face a hearing if you keep skipping class. A classmate can remember what you did next year.
+- Choose from 79 programs across vocational training, community college, university, graduate, doctoral and professional schools. Compare tuition and aid, carry eligible credits into further study, and earn honors. Poor marks can lead to probation or dismissal. Prepare for readmission if you want to go back.
+- The job catalog gains 179 modern and future occupations in 18 fields and 29 historical occupations. Compare employer offers, meet the qualifications, interview for vacancies and make workplace decisions that affect pay, reputation and colleagues. Regional and calendar rules still apply.
+- Try acting, music or competitive sport from age 12. Junior selections are unpaid. Adults can sign a season, prepare a reliable performance or take a risk, and work their way onto a regional circuit. Fees and recording income appear on the household statement.
+- Twenty new stories include choices that return years later. Four optional challenges track milestones in education, work, debt recovery and community life.
+- Family Time Capsules record dated qualifications, academic honors, completed seasons and career distinctions. Existing save slots and backups carry forward.
+
+[Download the v1.3.0 Android APK](builds/Pocket-Years-v1.3.0.apk?raw=1) · [Testing and known issues](qa/v1.3/RESULTS.md) · [Milestone scope and follow-up work](qa/v1.3/milestone.md)
+
 # Pocket Years v1.2 — Balance, Realism & Polish
 
 - New hires start at career-specific pay grades. Experience, training and performance open better roles. Supervisors review promotions and raises. A work reference can reopen some opportunities after a conviction.
