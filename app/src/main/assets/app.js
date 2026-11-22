@@ -28,6 +28,7 @@
   const faithLink=()=>row('sheet','faith-home','Religion & beliefs','Explore beliefs, practices and communities.','book');
   const communityPropertyLink=()=>row('sheet','faith-institutions','Community land & institutions','Review local deeds, staff and operating accounts.','home');
   const careerFaithLink=()=>row('sheet','faith-career','Religious vocations','Training, service and community leadership.','people');
+  const pathwaysUI=window.PocketPathwaysUI.create({E,row,detail,subhead,esc,cash});
   const earlier=()=>E.isHistorical(life);
   const future=()=>E.historyEconomy.isFuture(life);
   const futureWords=()=>{
@@ -49,10 +50,10 @@
   const eraExtras=()=>!!life.sim.timeline?.historicalRules&&!earlier();
   const newEconomy=(area,title,desc)=>historicalUI.link(area,title,desc);
   function periodSchool(){
-    return occupationTabs('school')+pageTitle('Education','Training in '+historicalUI.location(life.town,E.calendar(life)))+noteHtml()+historicalUI.rows(life,'school');
+    return occupationTabs('school')+pageTitle('Education','Training in '+historicalUI.location(life.town,E.calendar(life)))+noteHtml()+pathwaysUI.schoolLinks(life)+classLink()+historicalUI.rows(life,'school');
   }
   function periodCareer(){
-    return occupationTabs('career')+pageTitle('Occupation',E.occupation(life))+noteHtml()+historicalUI.rows(life,'work')+
+    return occupationTabs('career')+pageTitle('Occupation',E.occupation(life))+noteHtml()+pathwaysUI.studioLink(life)+historicalUI.rows(life,'work')+
       subhead('Independent work')+newEconomy('business','Enterprises','Open a business or manage the family trade.');
   }
   function budgetAlert(b){
@@ -121,7 +122,7 @@
     display(next,reason);
   }
   function onHistory(){
-    if(!pendingBack&&activeRoute&&(['assets','activities'].includes(activeRoute.tab)||activeRoute.sheet?.startsWith('hist-')||activeRoute.sheet?.startsWith('faith-'))){
+    if(!pendingBack&&activeRoute&&(['assets','activities'].includes(activeRoute.tab)||activeRoute.sheet?.startsWith('hist-')||activeRoute.sheet?.startsWith('faith-')||activeRoute.sheet?.startsWith('path-')||activeRoute.sheet?.startsWith('job-'))){
       const destination=readRoute();
       if(destination.tab===activeRoute.tab&&!destination.sheet){
         const parent=parentSheet(activeRoute.tab,activeRoute.sheet);
@@ -217,7 +218,7 @@
     previousStats=Object.assign({cash:life.cash,worth:W.netWorth(life)},life.stats);previousLife=life;
     const inSchool=!!E.model.school(life).name,school=inSchool||life.age<18;
     setImage('career-icon',life.sim.prison?'key':school?'school':'bag');
-    setText('label-occupation',life.sim.prison?'Prison':inSchool?(life.sim.program?'University':'School'):'Occupation');
+    setText('label-occupation',life.sim.prison?'Prison':inSchool?(life.sim.program?.pathway?'Studies':life.sim.program?'University':'School'):'Occupation');
     for(const k of ['occupation','assets','people','activities']){
       const selected=k==='occupation'?['school','career'].includes(tab):k===tab,el=byId('nav-'+k);
       if(selected)el.setAttribute('aria-current','page');else el.removeAttribute('aria-current');
@@ -276,6 +277,9 @@
     if(last)html+='<p>'+esc(last.body)+'</p>';
     const peak=l.sim.peak,career=peak.title&&E.jobs[peak.title]?E.jobs[peak.title][0]+' · '+cash(peak.salary)+' peak annual pay':'No recorded career';
     html+=detail('Career highlight',career)+detail('Criminal record',l.sim.offenses.length?l.sim.offenses.map(x=>x.offense+' · '+x.verdict).join(' / '):'No offenses recorded.')+'<div class="epitaph">'+icon('flag')+'<span>Achievement ribbon</span><b>'+esc(E.legacyTitle(l))+'</b></div>';
+    html+=historicalUI.personalHistory(E.historyDynasty.personalRecord(l));
+    const awards=l.sim.expansion?.awards||[];
+    if(awards.length)html+=detail('Awards',awards.join(' · '));
     html+='<div class="legacy-line">'+l.turns+' decisions · '+cash(W.netWorth(l))+' net worth</div>';
     if(current&&l.ended){
       const heirs=E.eligibleHeirs(l),direct=kids.length>0;
@@ -293,16 +297,21 @@
   function members(group){
     return Object.entries(life.people).filter(([,p])=>p.met&&p.active&&(group==='class'?p.atSchool:['Boss','Coworker'].includes(p.role)));
   }
+  function classLink(){
+    const roster=members('class');
+    return roster.length?'<div class="commands roster-link">'+row('sheet','class','Class directory',roster.length+' students and staff','people')+'</div>':'';
+  }
   function schoolPage(){
     if(earlier())return periodSchool();
     const v=E.state(life),all=W.careerOptions(life),student=!!v.currentSchool&&!life.sim.prison;
     const feature='<section class="feature"><div class="eyebrow">'+icon('school')+esc(v.educationLevel)+'</div><h2>'+esc(v.currentSchool||'Education record')+'</h2>'+
-      (life.age>=5?meter('Grades',life.world.grade,'book')+'<p class="feature-detail">GPA '+v.gpa.toFixed(2)+' / 4.00'+(v.schoolActivities.length?' · '+esc(v.schoolActivities.join(', ')):'')+'</p>':'<p>Elementary school starts at age 5.</p>')+'</section>';
+      (life.age>=5?meter('Grades',life.world.grade,'book')+'<p class="feature-detail">GPA '+v.gpa.toFixed(2)+' / 4.00'+(v.schoolActivities.length?' · '+esc(v.schoolActivities.join(', ')):'')+'</p>':v.currentSchool?'<p>Elementary school starts at age 5.</p>':'<p>School begins in early childhood.</p>')+'</section>';
     let html=occupationTabs('school')+feature+noteHtml();
     if(life.ended)return html;
+    html+=pathwaysUI.schoolLinks(life);
     if(eraExtras()&&life.age>=5)html+=newEconomy('school','Specialist training','Gain practical skills for specialist jobs.');
-    if(life.age>=18)html+='<div class="commands roster-link">'+row('sheet','hub-education',life.sim.program?'My program':'University and apprenticeships',life.sim.program?'Qualifications, major and enrollment.':'Choose a course, arrange tuition or train for a trade.','school')+'</div>';
-    if(members('class').length)html+='<div class="commands roster-link">'+row('sheet','class','Class directory',members('class').length+' students and staff','people')+'</div>';
+    if(life.age>=18)html+='<div class="commands roster-link">'+row('sheet','hub-education',life.sim.program&&!life.sim.program.pathway?'My program':'University and apprenticeships','General courses, university majors and paid apprenticeships.','school')+'</div>';
+    html+=classLink();
     const direct=all.filter(o=>student?['study','science'].includes(o.id):o.id==='discover');
     const actions=S.options(life,'school').filter(o=>student?o.id!=='equivalency'&&!o.reason.startsWith('Opens')&&!o.reason.startsWith('Ages'):o.id==='equivalency'&&life.age>=18&&life.sim.dropped);
     if(direct.length||actions.length)html+=subhead('School actions')+'<div class="commands">'+direct.map(o=>row('career',o.id,o.title,o.desc,o.icon,o.reason)).join('')+actions.map(option).join('')+'</div>';
@@ -313,10 +322,10 @@
     const v=E.state(life),under=life.age<18,employed=!!life.job&&!['student','retired'].includes(life.job);
     const opts=W.careerOptions(life).filter(o=>(under?['paper','cafe','odd','leave-shift']:['practice','promote','mentor','train']).includes(o.id));
     let html=occupationTabs('career')+'<section class="feature"><div class="eyebrow">'+icon('bag')+'Occupation</div><h2>'+esc(v.jobTitle||'Unemployed')+'</h2>'+
-      (employed||life.world.partJob?meter('Performance',v.jobPerformance,'trend'):'')+'<p class="feature-detail">'+esc([v.employer,v.jobTitle?cash(v.salary+(S.budget(life).pension||0))+' annual pay':'',v.yearsAtJob?v.yearsAtJob+' years in role':''].filter(Boolean).join(' · '))+'</p></section>'+noteHtml();
+      (employed||life.world.partJob?meter('Performance',v.jobPerformance,'trend'):'')+'<p class="feature-detail">'+esc([v.employer,E.occupations.entries[life.job]?E.occupations.rank(life,life.job):'',v.jobTitle?cash(v.salary+(S.budget(life).pension||0))+' annual pay':'',v.yearsAtJob?v.yearsAtJob+' years in role':''].filter(Boolean).join(' · '))+'</p></section>'+noteHtml();
     if(life.ended)return html;
     if(eraExtras())html+=newEconomy('work',future()?'Future professions':'Specialist work','Opportunities and assignments this year.')+newEconomy('business',future()?'Future enterprises':'Independent enterprises','Industry and private ventures.');
-    html+=careerFaithLink();
+    html+=pathwaysUI.workLink(life)+pathwaysUI.studioLink(life)+careerFaithLink();
     if(under&&life.age<14)return html+detail('Part-time work','Jobs open at age 14. Pay arrives on your next birthday.');
     if(!under)html+='<div class="commands">'+(employed?extra.link('career','Professional life','Assignments, certification and salary negotiations.','bag'):'')+extra.link('business','Work for yourself','Contracts, companies and employees.','shop')+'</div>';
     if(!under)html+='<div class="commands roster-link">'+row('sheet','jobs','Job listings','This year’s vacancies, salaries and requirements.','bag')+'</div>';
@@ -364,6 +373,7 @@
       body:'<p class="sheet-intro">New listings arrive on your next birthday.</p><div class="commands">'+rows+'</div>'};
   }
   function parentSheet(tab,key){
+    if(key?.startsWith('path-')||key?.startsWith('job-'))return pathwaysUI.parent(life,key);
     if(key==='faith-encounter')return 'faith-home';
     if(key?.startsWith('relief-'))return 'household-help';
     if(key==='household-help')return 'budget';
@@ -584,9 +594,9 @@
       '<button class="event-choice" data-do="choose" data-key="'+i+'" data-event="'+esc(e.id)+'" data-age="'+life.age+'"><span>'+icon(o.icon)+'</span><strong>'+esc(E.copy(life,o.label))+'</strong>'+icon('chev')+'</button>').join('')+'</div>'};
   }
   function jobsBody(){
-    const keys=Object.keys(W.openings).filter(k=>jobFilter==='all'||!W.jobReason(life,k));
+    const keys=Object.keys(W.openings).filter(k=>!Object.hasOwn(E.occupations.entries,k)&&(jobFilter==='all'||!W.jobReason(life,k)));
     keys.sort((a,b)=>Number(!!W.jobReason(life,a))-Number(!!W.jobReason(life,b))||E.jobs[b][1]-E.jobs[a][1]);
-    return '<div class="filters">'+filterButton('jobs-filter','eligible','Eligible','check',jobFilter==='eligible')+filterButton('jobs-filter','all','All jobs','bag',jobFilter==='all')+'</div>'+
+    return '<div class="commands">'+row('sheet','path-fields','Careers by field','Compare specialist roles, entry requirements and salaries.','compass')+'</div>'+subhead('General vacancies')+'<div class="filters">'+filterButton('jobs-filter','eligible','Eligible','check',jobFilter==='eligible')+filterButton('jobs-filter','all','All jobs','bag',jobFilter==='all')+'</div>'+
       (keys.length?'':'<p class="sheet-intro">No eligible openings. All jobs shows the requirements.</p>')+'<div class="commands">'+keys.map(id=>
       row('sheet','job-'+id,E.jobs[id][0],W.openings[id][0]+' · '+cash(X.economy.salary(life,id,E.jobs))+' a year',jobIcons[id]||X.data.sectors[X.data.sector(id)][5],W.jobReason(life,id))).join('')+'</div>';
   }
@@ -686,8 +696,8 @@
     }
     if(group==='education'){
       const p=life.sim.program;
-      const qualifications=[life.sim.degree,life.sim.professional,life.world.credential==='trade'||life.world.tradeQualified?'Trade certificate':null].filter(Boolean).join(' · ');
-      intro=detail('Your education',p?('Studying '+(p.field==='general'?'General studies':S.programs[p.field].degree)+' · Graduation at age '+p.end) :life.job==='trainee'&&life.world.credential!=='trade'?'Paid apprenticeship · Qualification at age '+(life.world.since+4):'You are currently out of school.')+(qualifications?detail('Earned qualifications',qualifications):'');
+      const qualifications=E.education.records(life).map(r=>r.title).join(' · ');
+      intro=detail('Your education',p?('Studying '+(p.pathway?E.education.programs[p.field].title:p.field==='general'?'General studies':S.programs[p.field].degree)+' · Graduation at age '+p.end) :life.job==='trainee'&&life.world.credential!=='trade'?'Paid apprenticeship · Qualification at age '+(life.world.since+4):'You are currently out of school.')+(qualifications?detail('Earned qualifications',qualifications):'');
     }
     if(group==='pets'&&life.sim.pet){
       const p=life.sim.pet;
@@ -750,7 +760,7 @@
     const previous=Number.isInteger(b.year),age=previous?(b.earnedAge??Math.max(0,b.year-life.born-1)):life.age;
     const town=b.town||(previous?S.townAtAge(life,age):life.town);
     const amount=n=>E.historyEconomy.money(life,n,age,town);
-    const values=[['Salary or part-time wages',b.wages],['Pension',b.pension||0],['Side work',b.side||0],['Fund yield',b.yieldIncome||0],['Rental income',b.rent],['Business distributions',b.businessIncome||0],['Household support',b.support||0],['Business losses',-(b.operatingLoss||0)],['Insurance',-(b.insurance||0)],['Management fees',-(b.management||0)],['Lifestyle',-(b.lifestyle||0)],['Tax',-b.tax],['Rent',-(b.housing||0)],['Living costs',-b.living],['Dependent children',-b.dependents],['Property, vehicles and pets',-b.upkeep],['Loan payments',-b.payment],['New unpaid bills',b.arrears||0],['Unpaid housing carried forward',b.housingArrears||0],['Costs left unmet',b.uncovered||0],['Change in bank balance',b.net]];
+    const values=[['Salary or part-time wages',b.wages],['Pension',b.pension||0],['Side work',(b.side||0)-(b.performanceIncome||0)],...(b.performanceIncome?[['Performance fees & royalties',b.performanceIncome]]:[]),['Fund yield',b.yieldIncome||0],['Rental income',b.rent],['Business distributions',b.businessIncome||0],['Household support',b.support||0],['Business losses',-(b.operatingLoss||0)],['Insurance',-(b.insurance||0)],['Management fees',-(b.management||0)],['Lifestyle',-(b.lifestyle||0)],['Tax',-b.tax],['Rent',-(b.housing||0)],['Living costs',-b.living],['Dependent children',-b.dependents],['Property, vehicles and pets',-b.upkeep],['Loan payments',-b.payment],['New unpaid bills',b.arrears||0],['Unpaid housing carried forward',b.housingArrears||0],['Costs left unmet',b.uncovered||0],['Change in bank balance',b.net]];
     const historic=life.sim.timeline?.historicalRules&&(life.born+age)<2000;
     const periodLabels={'Change in bank balance':'Change in cash','Property, vehicles and pets':'Upkeep','Salary or part-time wages':'Wages','Tax':'Taxes and dues','Business distributions':'Trading income'};
     const essential=['Salary or part-time wages','Tax','Living costs','Change in bank balance'];
@@ -815,13 +825,19 @@
       '<div class="commands">'+row('plea','plea','Plead guilty','Accept the fine and reduce the sentence by one year.','letter')+row('plea','trial','Go to trial','The court can clear you or impose the full sentence.','book')+row('plea','counsel','Hire defense counsel','A '+cash(120)+' fee improves your chance at trial.','bag')+'</div>'};
   }
   function interviewView(id){
-    if(!W.openings[id])return null;
+    if(!Object.hasOwn(W.openings,id)||E.occupations.entries[id]&&!E.occupations.eligibleYear(life,id))return null;
     const prompt=W.interviewPrompt(id);
     const why=W.jobReason(life,id);
-    return {title:E.jobs[id][0],tag:'Interview · '+W.openings[id][0],body:detail('Annual salary',cash(X.economy.salary(life,id,E.jobs))+' before taxes and expenses.')+detail('The interviewer asks',prompt.question)+
+    const entry=E.occupations.entries[id];
+    const programs=entry?.level?E.education.eligible(life).filter(p=>p.field===entry.field&&p.level===entry.level):[];
+    const requirements=entry?detail('Entry requirements',E.occupations.describe(id))+
+      (programs.length?detail('Study options',programs.map(p=>p.title).join(' · ')):'')+
+      (why?detail('Application status',why):''):'';
+    return {title:E.jobs[id][0],tag:'Interview · '+W.openings[id][0],body:requirements+detail('Annual salary',cash(X.economy.salary(life,id,E.jobs))+' before taxes and expenses.'+(entry?' The offer reflects the employer’s budget, local wages, your aptitude and experience. A move leaves your pay tied to the hiring city.':''))+detail('The interviewer asks',prompt.question)+
       '<div class="commands">'+prompt.answers.map(([k,t,ic])=>row('interview',id+'~'+k,t,'',ic,why)).join('')+'</div>'};
   }
   function modal(key){
+    if(key.startsWith('path-'))return pathwaysUI.sheet(life,key);
     if(key==='faith-encounter'){
       const event=E.faithEncounters.current(life);if(!event)return null;
       return {title:event.title,tag:'Community decision',body:(event.source?detail('Historical record',event.fact+' — '+event.source):'')+
@@ -942,7 +958,7 @@
       row('sheet','appearance','Journal appearance',game.settings.theme&&game.settings.theme!=='auto'?'Theme locked':'Follows the calendar','palette')+
       row('sheet','realism','Health & mortality',E.year.realism(life)==='historical'?'Historical mortality':'Guided mortality','heart')+
       row('sheet','motion','Motion settings',game.settings.motion==='reduced'?'Reduced motion':'Use device preference','phone')+
-      row('sheet','checkpoint','Save slots & backups','Switch lives, recover or transfer a save.','save')+row('sheet','help','How to play','Aging, choices and free time.','book')+(game.archive.length?row('sheet','archive','Past lives',game.archive.length+' saved','archive'):'')+'</div><p class="version">Pocket Years · v1.2.1</p>'};
+      row('sheet','checkpoint','Save slots & backups','Switch lives, recover or transfer a save.','save')+row('sheet','help','How to play','Aging, choices and free time.','book')+(game.archive.length?row('sheet','archive','Past lives',game.archive.length+' saved','archive'):'')+'</div><p class="version">Pocket Years · v1.3.0 · Life Expanded</p>'};
     if(key==='appearance'){
       const selected=game.settings.theme||'auto';
       const themes=[{id:'auto',name:'Follow the calendar',icon:'clock'},...eraUI.themes];
@@ -1010,10 +1026,12 @@
       return;
     }
     const locked=!!E.blocking(life);
+    const parent=!locked&&(key.startsWith('path-')||key.startsWith('job-'))?pathwaysUI.parent(life,key):null;
+    const back=parent?actionButton('sheet',parent,'Back','path-back','back'):'';
     const swap=!!openPanel, same=swap&&openPanel.dataset.key===key;
     if(!openPanel){openPanel=document.createElement('div');openPanel.className='shade';overlay.appendChild(openPanel);}
     openPanel.dataset.key=key;
-    openPanel.innerHTML='<section class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" tabindex="-1">'+(locked?'':'<div class="sheet-grip"></div>')+'<div class="sheet-head"><div>'+(model.tag?'<div class="eyebrow">'+esc(model.tag)+'</div>':'')+'<h2 id="sheet-title">'+esc(model.title)+'</h2></div>'+(locked?'':actionButton('close','','Close','icon-button sheet-close','close'))+'</div>'+(model.art?image(model.art,'sheet-token'):'')+model.body+'</section>';
+    openPanel.innerHTML='<section class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" tabindex="-1">'+(locked?'':'<div class="sheet-grip"></div>')+back+'<div class="sheet-head"><div>'+(model.tag?'<div class="eyebrow">'+esc(model.tag)+'</div>':'')+'<h2 id="sheet-title">'+esc(model.title)+'</h2></div>'+(locked?'':actionButton('close','','Close','icon-button sheet-close','close'))+'</div>'+(model.art?image(model.art,'sheet-token'):'')+model.body+'</section>';
     const panel=openPanel.querySelector('.sheet');
     document.body.classList.add('dialog-open');panel.focus({preventScroll:true});shell.setAttribute('aria-hidden','true');shell.setAttribute('inert','');
     if(!same)M.open(openPanel,panel,swap);
@@ -1081,6 +1099,24 @@
     const act=b.dataset.do,key=b.dataset.key||'';
     if(activeRoute.sheet && (!openPanel || !openPanel.contains(b)))return;
     if(!activeRoute.sheet&&!shell.contains(b))return;
+    if(act.startsWith('path-')){
+      if(act==='path-apply'){
+        const [id,method]=key.split('~');
+        if(activeRoute.sheet==='path-program~'+id)applyResult(E.educationApply(life,id,method));
+      }else if(act==='path-community-action'&&activeRoute.sheet==='path-community'){
+        applyResult(E.schoolCommunity.perform(life,key));
+      }else if(act==='path-school-action'&&(activeRoute.sheet==='path-withdraw'&&key==='withdraw'||activeRoute.sheet==='path-programs'&&key!=='withdraw')){
+        applyResult(E.educationAction(life,key));
+      }else if(act==='path-work-choice'&&activeRoute.sheet==='path-assignment'){
+        applyResult(E.occupationChoice(life,key));
+      }else if(act==='path-challenge'&&activeRoute.sheet==='path-challenges'){
+        applyResult(E.pathwayChallenge(life,key));
+      }else if(act==='path-season'){
+        const [track,id]=key.split('~');
+        if(activeRoute.sheet==='path-season~'+track)applyResult(E.performSeason(life,track,id));
+      }
+      return;
+    }
     if(act==='faith-encounter'&&activeRoute.sheet==='faith-encounter'){applyResult(E.faithPerform(life,{group:'encounter',id:key}));return;}
     if(act==='faith-run'){applyResult(E.faithPerform(life,faithUI.command(life,activeRoute.sheet,key)));return;}
     if(act==='hist-run'&&activeRoute.sheet===key&&key.startsWith('hist-review~')){applyResult(historicalUI.perform(life,key));return;}

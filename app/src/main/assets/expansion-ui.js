@@ -37,7 +37,7 @@
       if(area==='world'&&x.worldHistory?.length){
         body+=subhead('Recent market reports')+x.worldHistory.slice(-4).reverse().map(r=>detail(String(r.year)+' · '+G.cities[r.town].name,r.phase+' · '+r.unemployment+'% unemployment · '+r.industry+' hiring.')).join('');
       }
-      if(area==='hobbies')body=summary(l)+detail('Achievements',x.awards.join(' · ')||'Your milestones will be recorded here.');
+      if(area==='hobbies')body=summary(l)+row('sheet','path-challenges','Life challenges','Choose a goal and track its milestones.','flag')+detail('Achievements',x.awards.join(' · ')||'Your milestones will be recorded here.');
       if(area==='family'){
         const tree=x.family,keys=new Map(Object.entries(l.people).map(([k,p])=>[p.id,k]));
         const nodes=Object.values(tree).sort((a,b)=>a.born-b.born||a.name.localeCompare(b.name));

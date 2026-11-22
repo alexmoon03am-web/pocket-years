@@ -65,7 +65,7 @@
     },l=>employed(l)||world.reviewReason(l));
     add('retire-now','work','Retire','sprout','Leave full-time work and draw an annual pension.',l=>{
       world.changeJob(l,'retired',true);M.tag(l,'retired');return finish(l,'retire-now','Career','Retired','I handed over my badge. The pension office took my number.',{joy:6,health:3});
-    },l=>l.age<60?'Opens at 60':l.job==='retired'?'Already retired':'');
+    },l=>l.age<60?'Opens at 60':l.job==='retired'||l.sim.studyPension!==undefined?'Already retired':'');
     add('side-hustle','work','Take weekend freelance work','bag','Earn $1,200 each year you keep the work.',l=>{
       l.sim.sideHustle=1200;return finish(l,'side-hustle','Career','Weekend work','My weekends now have invoices.',{joy:-2,discipline:3});
     },l=>adult(l)||(l.sim.sideHustle?'Already active':''));

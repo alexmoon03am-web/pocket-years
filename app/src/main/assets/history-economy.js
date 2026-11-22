@@ -100,12 +100,15 @@
       ['climate','Climate restoration planner',99100,2,'Survey a restoration site'],['orbital','Orbital traffic controller',128000,3,'Reserve a docking window',2070]
     ]
   };
+  const occupations=node?require('./occupations.js').PocketOccupations:root.PocketOccupations;
+  for(const [periodId,additional] of Object.entries(occupations.historicalRoles))roles[periodId].push(...additional);
   const allRoles={},jobs={};for(const rows of Object.values(roles))for(const r of rows){const id='era-'+r[0];allRoles[id]=r;jobs[id]=[r[1],r[2]];}
   function allowed(row,y,region){return (!row[5]||y>=row[5])&&(!row[6]||row[6].split(' ').includes(region));}
   function rail(l,age=l.age,town=l.town){return /rail/.test(world().place(town,year(l,age)).transport)||year(l,age)>=1910;}
+  const railRoles=new Set(['railhand','signals','stationclerk']);
   function roleRows(l,age=l.age,town=l.town){
     const p=profile(l,age,town),y=year(l,age);
-    return roles[p.period].filter(r=>allowed(r,y,p.region)&&(r[0]!=='railhand'||rail(l,age,town)));
+    return roles[p.period].filter(r=>allowed(r,y,p.region)&&(!railRoles.has(r[0])||rail(l,age,town)));
   }
   function npcJob(l,seed=0,town=l.town){
     const rows=roleRows(l,l.age,town),stock=rows.length?rows:roles.medieval,r=stock[hash(seed)%stock.length];
@@ -311,7 +314,7 @@
           const service=['era-warrior','era-retainer'].reduce((n,key)=>n+(l.world.roleYears?.[key]??(l.job===key?Math.max(0,l.age-l.world.since):0)),0);
           if(service<2)qual='Needs 2 years of guard or court service, or an inherited landed title';
         }
-        add('job-'+id,r[1],costText(wage(l,id))+' per year'+(r[3]?' · training '+r[3]+'/6':''),'bag',0,id===l.job?'Current occupation':qual,api=>{
+        add('job-'+id,r[1],costText(wage(l,id))+' per year'+(r[3]?' · training '+r[3]+'/6':''),'bag',0,id===l.job?'Current occupation':l.sim.program?'Finish or leave your course':qual,api=>{
           changeJob(l,id,api);if(r[0]==='knight'&&!l.sim.lifeTags.includes('court-service'))l.sim.lifeTags.push('court-service');
           return 'I took work as a '+r[1].toLowerCase()+'. The pay starts on my next birthday.';});
       }
@@ -407,7 +410,7 @@
   }
   function changeJob(l,id,api){
     if(api?.world)api.world.changeJob(l,id,true);
-    else{l.job=id;l.world.contractRole=id;l.extraPay=0;l.world.level=0;l.world.since=l.age;l.world.performance=56;l.world.customCareer=true;l.sim.staffJob=null;}
+    else{delete l.world.offerTown;l.job=id;l.world.contractRole=id;l.extraPay=0;l.world.level=0;l.world.since=l.age;l.world.performance=56;l.world.customCareer=true;l.sim.staffJob=null;}
     if(id){
       l.sim.expansion.employer=allRoles[id][1]+' household';l.track='work';
       if(wage(l,id)>l.sim.peak.salary)l.sim.peak={title:id,salary:wage(l,id)};

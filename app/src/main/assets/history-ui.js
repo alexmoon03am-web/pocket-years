@@ -44,6 +44,15 @@
       if(p.populationIndex)rows.push(detail('Settlement growth','Population index '+p.populationIndex+' · simulated regional development.'));
       return rows.join('');
     }
+    function personalHistory(r){
+      const body=[];
+      if(r.lastSpecialistRole)body.push(detail('Last specialist role',r.lastSpecialistRole));
+      if(r.studies?.length)body.push(subhead('Qualifications'),...r.studies.map(s=>
+        detail(s.title,[s.year===null?'Year unrecorded':String(s.year),s.honors?'With honors':''].filter(Boolean).join(' · '))));
+      if(r.performed?.length)body.push(subhead('Performance record'),...r.performed.map(s=>
+        detail(({acting:'Acting',music:'Music',sport:'Competitive sport'})[s.id],s.seasons+' '+(s.seasons===1?'season':'seasons')+' completed · '+s.audience.toLocaleString('en-US')+' supporters')));
+      return body.join('');
+    }
     function sheet(l,game,key){
       const [type,ref,arg]=key.split('~');
       if(type==='hist-review'){
@@ -84,7 +93,7 @@
         const log=r.log||[],page=Math.max(0,Number.isInteger(+arg)?+arg:0);
         const visible=log.slice(page*20,page*20+20);
         const route=type==='hist-capsule'?type+'~'+ref:type+'~0';
-        let body=overview.filter(([,s])=>s).map(([k,s])=>detail(k,s)).join('');
+        let body=overview.filter(([,s])=>s).map(([k,s])=>detail(k,s)).join('')+personalHistory(r);
         if(r.faithLegacy){
           const f=r.faithLegacy;
           const beliefs=[['Starting outlook',f.original],[r.ended?'Final outlook':'Current outlook',f.identity],['Devotion',f.commitment]];
@@ -121,7 +130,7 @@
       const a=lookup(l,group,id);
       return a&&!a.reason&&!a.disabled?E.historyPerform(l,group,id):null;
     }
-    return {link,sheet,rows,currentWorld,location,perform,holding};
+    return {link,sheet,rows,currentWorld,location,perform,holding,personalHistory};
   }
   root.PocketHistoryUI={create};
 })(typeof module!=='undefined'&&module.exports?module.exports:window);

@@ -5,6 +5,7 @@
   const PocketExpansion=typeof module!=='undefined'&&module.exports?require('./expansion.js').PocketExpansion:root.PocketExpansion;
   const PocketExpansionData=typeof module!=='undefined'&&module.exports?require('./expansion-data.js').PocketExpansionData:root.PocketExpansionData;
   const PocketEconomy=typeof module!=='undefined'&&module.exports?require('./economy.js').PocketEconomy:root.PocketEconomy;
+  const occupations=typeof module!=='undefined'&&module.exports?require('./occupations.js').PocketOccupations:root.PocketOccupations;
   const M=typeof module!=='undefined'&&module.exports?require('./model.js').PocketModel:root.PocketModel;
   const shopping=typeof module!=='undefined'&&module.exports?require('./market.js').PocketMarket:root.PocketMarket;
   const era=typeof module!=='undefined'&&module.exports?require('./history-economy.js').PocketHistoryEconomy:root.PocketHistoryEconomy;
@@ -74,8 +75,20 @@
     }
     function changeJob(life,id,custom){
       if(life.job===id){life.world.customCareer=!!custom;return;}
+      let restoredPay=0;
+      // A course exit or court sentence may already have cleared the enrollment.
+      // Retirement belongs to the student and survives either exit route.
+      if(life.job==='student'&&life.sim.studyPension!==undefined){
+        if(!id||id==='retired'){
+          id='retired';restoredPay=life.sim.studyPension-jobs.retired[1];
+        }
+        if(life.sim.program?.pathway)life.sim.program=null;
+        delete life.sim.studyPension;
+      }
       if(life.sim?.expansion){delete life.sim.expansion.employer;life.sim.expansion.discipline=0;}
-      life.job=id;life.world.contractRole=id;delete life.world.legacyPayFactor;life.extraPay=0;life.world.level=0;life.world.performance=56;life.world.since=life.age;
+      if(occupations.entries[id])life.world.offerTown=life.town;
+      else delete life.world.offerTown;
+      life.job=id;life.world.contractRole=id;delete life.world.legacyPayFactor;life.extraPay=restoredPay;life.world.level=0;life.world.performance=56;life.world.since=life.age;
       life.world.customCareer=!!custom;if(life.hidden)api.staff(life);
     }
     function transferEmployer(life,name){
@@ -275,7 +288,8 @@
     }
     function jobReason(life,id){
       if(early(life))return "This opening is unavailable this year";
-      const row=openings[id];if(!row)return 'Unavailable';
+      if(typeof id!=='string'||!Object.hasOwn(openings,id))return 'Unavailable';
+      const row=openings[id];
       if(life.ended)return 'Life complete';
       if(life.job===id)return 'Current job';
       if(life.age<18)return 'Opens at 18';
@@ -283,15 +297,17 @@
       if(life.sim.program)return 'Finish or leave your course';
       if(life.job==='trainee'&&life.world.credential!=='trade'&&!life.world.tradeQualified)return 'Finish or leave your apprenticeship';
       if(life.sim.record&&['physician','lawyer'].includes(id))return 'Clean record required';
+      const occupationRequirement=occupations.requirement(life,id);
+      if(occupationRequirement)return occupationRequirement;
       const years=life.sim.workYears||0;
       const apprenticeship={dispatcher:1,photographer:1,organizer:2,manager:3,chef:4,engineerqa:2,architect:2,engineer:2,pharmacist:2};
       const need=apprenticeship[id]||0;
       if(years<need)return 'Needs '+need+' '+(need===1?'year':'years')+' of work experience';
-      if(id==='manager'&&life.world.performance<70&&!life.sim.expansion?.certs.includes('Commerce')&&life.sim.degree!=='Business')return 'Needs 70% work performance, a business degree or financial certification';
-      if(row[1]==='medicine'&&life.sim.professional!=='Medicine')return 'Medical degree required';
-      if(row[1]==='law'&&life.sim.professional!=='Law')return 'Law degree required';
-      if(row[1]==='business'&&!['Business','General studies'].includes(life.sim.degree))return 'Business degree required';
-      if(row[1]==='science'&&!['Science','General studies'].includes(life.sim.degree))return 'Science degree required';
+      if(id==='manager'&&life.world.performance<70&&!life.sim.expansion?.certs.includes('Commerce')&&life.sim.degree!=='Business'&&!occupations.hasQualification(life,['business'],'bachelor'))return 'Needs 70% work performance, a business degree or financial certification';
+      if(row[1]==='medicine'&&!occupations.hasQualification(life,['medicine'],'professional'))return 'Medical degree required';
+      if(row[1]==='law'&&!occupations.hasQualification(life,['law'],'professional'))return 'Law degree required';
+      if(row[1]==='business'&&!['Business','General studies'].includes(life.sim.degree)&&!occupations.equivalent(life,id))return 'Business degree required';
+      if(row[1]==='science'&&!['Science','General studies'].includes(life.sim.degree)&&!occupations.equivalent(life,id))return 'Science degree required';
       if(row[1]==='athletics'){
         if(life.stats.health<80)return 'Needs 80% health';
         const running=life.sim.expansion?.hobbies?.running||0;
@@ -422,7 +438,9 @@
       return commit(l,'app-match-'+index,'People',yes?'Matched with '+m.name:'No reply',yes?'I met '+m.fullName+' for coffee. Both phones went back in pockets.':'The app marked my message as seen. That was the whole conversation.',{cash:-introductionCost,joy:yes?5:-2},{});
     }
     function interviewPrompt(id){
-      const opening=openings[id];if(!opening)return null;const group=opening[1];
+      if(occupations.entries[id])return occupations.prompt(id);
+      if(typeof id!=='string'||!Object.hasOwn(openings,id))return null;
+      const group=openings[id][1];
       let question='A teammate is behind on a deadline. What do you do?',example='Describe a time you split the work',honest='Ask what they need';
       if(['medicine','science'].includes(group)){question='A patient is worried about the next visit. How do you respond?';example='Describe a similar conversation';honest='Listen and check the care plan';}
       if(['trade','athletics','stage'].includes(group)){question='Something goes wrong just before a deadline. What do you do?';example='Describe how you fixed a past mistake';honest='Tell the team and ask for help';}

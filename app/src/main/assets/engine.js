@@ -6,6 +6,11 @@
   const catalog = typeof module !== 'undefined' && module.exports ? require('./stories.js').PocketStories : root.PocketStories;
   const {stories}=catalog;
   const node=typeof module!=='undefined'&&module.exports;
+  const education=node?require('./education.js').PocketEducation:root.PocketEducation;
+  const occupations=node?require('./occupations.js').PocketOccupations:root.PocketOccupations;
+  const schoolFactory=node?require('./school-community.js').PocketSchoolCommunity:root.PocketSchoolCommunity;
+  const pathways=node?require('./pathways-stories.js').PocketPathwaysStories:root.PocketPathwaysStories;
+  const performanceStudio=node?require('./performance-studio.js').PocketPerformanceStudio:root.PocketPerformanceStudio;
   const historyWorld=node?require('./history-world.js').PocketHistoryWorld:root.PocketHistoryWorld;
   const historyEconomy=node?require('./history-economy.js').PocketHistoryEconomy:root.PocketHistoryEconomy;
   const historyDynasty=node?require('./history-dynasty.js').PocketHistoryDynasty:root.PocketHistoryDynasty;
@@ -40,7 +45,7 @@
   const isHistorical=l=>!!l.sim?.timeline?.historicalRules&&calendar(l)<2000;
   const birthYear=opts=>opts.birthYear??opts.born;
   const validStart=y=>Number.isInteger(y)&&y>=1200&&y<=3000;
-  function context(){return {jobs,world,sim,log,apply,blocking,random,actionReason,keepsake};}
+  function context(){return {jobs,world,sim,log,apply,blocking,random,actionReason,keepsake,campus:l=>year.campus(l)};}
   function historyPerform(l,area,id){
     if(l.ended||blocking(l))return null;
     return area==='museum'?historyDynasty.perform(l,id,context()):historyEconomy.perform(l,area,id,context());
@@ -92,9 +97,15 @@
   const loveNames = ['Charlie','Alex','Marlowe','Blair','Billie','Noa','Ash','Drew'];
   const clamp = v => Math.min(100,Math.max(0,v));
   const world=worldFactory.createWorld({jobs,apply,log,clamp,random,rngItem,actionReason,keepsake,cleanName,blocking,staff:l=>year.workplace(l)});
-  const sim=systemsFactory.create({world,jobs,apply,log,clamp,random,rngItem,actionReason,cleanName,blocking,campus:l=>year.campus(l),moved:(l,from,to)=>expansion.moved(l,from,to),arrived:faithInstitutions.initialize,dependence:(l,k,n)=>year.addiction(l,k,n)});
+  const sim=systemsFactory.create({world,jobs,apply,log,clamp,random,rngItem,actionReason,cleanName,blocking,campus:l=>year.campus(l),schoolAbsence:l=>schoolCommunity.absence(l),moved:(l,from,to)=>expansion.moved(l,from,to),arrived:faithInstitutions.initialize,dependence:(l,k,n)=>year.addiction(l,k,n)});
   const year=yearFactory.create({random,rngItem,apply,log,world,sim,jobs});
   const expansion=PocketExpansion.create({world,sim,jobs,log,apply,actionReason,blocking});
+  const schoolCommunity=schoolFactory.create(context());
+  const educationApply=(l,id,method)=>education.apply(l,id,method,context());
+  const educationAction=(l,id)=>education.action(l,id,context());
+  const occupationChoice=(l,id)=>occupations.decide(l,id,context());
+  const pathwayChallenge=(l,id)=>pathways.start(l,id,context());
+  const performSeason=(l,track,action)=>performanceStudio.perform(l,track,action,context());
   function random(life) {
     let a = life.rng >>> 0;
     a ^= a << 13; a ^= a >>> 17; a ^= a << 5;
@@ -109,7 +120,7 @@
   function nickname(name) { return name.trim().split(/\s+/)[0]; }
   function stage(age) { return age<5?0:age<13?1:age<18?2:age<40?3:age<65?4:5; }
   function chapter(age) { return ['First days','Childhood','Teen years','Young adulthood','Middle years','Later years'][stage(age)]; }
-  function occupation(l){if(l.ended)return 'Deceased';if(l.sim.prison)return 'In custody';return l.age<18&&l.sim.timeline?.youthShift?historyEconomy.shiftName(l):l.job?jobs[l.job][0]:model.school(l).name||(l.age===0?'Newborn':l.age<5?'Early childhood':l.age<18?'Left school':'Between jobs');}
+  function occupation(l){if(l.ended)return 'Deceased';if(l.sim.prison)return 'In custody';if(l.sim.program?.pathway)return education.school(l)?.name||'In training';return l.age<18&&l.sim.timeline?.youthShift?historyEconomy.shiftName(l):l.job?jobs[l.job][0]:model.school(l).name||(l.age===0?'Newborn':l.age<5?'Early childhood':l.age<18?'Left school':'Between jobs');}
   function portrait(life) { return life.age<4?0:life.age<18?1:life.age<65?2:3; }
   function copy(l,line){
     const actor=l.event&&l.people[l.event.person],words={contact:actor?actor.name:'the other person',child:actor?actor.name:'Your child',home:towns[l.town],name:l.name,carer:l.people.carer.name,friend:l.people.friend.name,love:l.people.love.name};
@@ -272,6 +283,7 @@
     const before=model.metrics(life,world.netWorth,sim.budget),branch=events.choose(life,opt,random),c=branch.change||{};
     apply(life,branch.effects||{});world.metrics(life,c);
     if(c.tag)model.tag(life,c.tag);
+    if(c.followup)world.schedule(life,c.followup.id,c.followup.years);
     if(c.care){const h=life.sim.illnesses[0]||life.sim.injuries[0];if(h){h.treated=true;h.severity=Math.max(1,h.severity-10);}}
     if(c.injury)life.sim.injuries.push({name:c.injury,severity:32,years:0});
     if(c.origin)life.flags.origin=c.origin;
@@ -323,9 +335,12 @@
         log(life,'School','Part-time payday',shift+' paid '+historyEconomy.money(life,b.wages)+'.',{cash:b.wages});
       }
       if(life.age===18&&life.sim.timeline)delete life.sim.timeline.youthShift;
+      performanceStudio.settle(life,earnedAge,context());
       year.conditions(life);
+      schoolCommunity.annual(life);
       expansion.annual(life,b,earnedAge);
       annualFaith(life);
+      pathways.annual(life,context());
       events.queue(life,stories,world,random);
       const changes=model.diff(statsBefore,life.stats),net=life.cash-openingCash;
       const details=Object.entries(changes).filter(([k])=>k!=='bonds').map(([k,n])=>statNames[k]+' '+(n>0?'+':'')+n).join(', ');
@@ -474,5 +489,5 @@
     if(!Number.isInteger(active.age)||!Number.isFinite(active.cash)||!Array.isArray(active.log))throw Error('Incomplete save');
     return {version:4,active,archive,settings:{motion:'system',...(data.settings||{})}};
   }
-  root.PocketEngine={faithEncounters,faithCatalog,faithPersonal,faithMovements,faithInstitutions,faithLegacy,faithCommunity,faithPerform,calendar,isHistorical,historyWorld,historyEconomy,historyDynasty,historyPerform,eligibleHeirs,expansion,state,startNext,model,events,year,blocking,acknowledge,encodeGame,decodeGame,stories,statNames,towns,jobs,origins,households,world,sim,continueAs,migrate,makeLife,customizeBirth,copy,chapter,occupation,portrait,decide,advance,actionList,actionReason,act,visit,income,legacyTitle,cleanName,seed};
+  root.PocketEngine={education,educationApply,educationAction,occupations,occupationChoice,schoolCommunity,pathways,pathwayChallenge,performanceStudio,performSeason,faithEncounters,faithCatalog,faithPersonal,faithMovements,faithInstitutions,faithLegacy,faithCommunity,faithPerform,calendar,isHistorical,historyWorld,historyEconomy,historyDynasty,historyPerform,eligibleHeirs,expansion,state,startNext,model,events,year,blocking,acknowledge,encodeGame,decodeGame,stories,statNames,towns,jobs,origins,households,world,sim,continueAs,migrate,makeLife,customizeBirth,copy,chapter,occupation,portrait,decide,advance,actionList,actionReason,act,visit,income,legacyTitle,cleanName,seed};
 })(typeof module !== 'undefined' && module.exports ? module.exports : window);

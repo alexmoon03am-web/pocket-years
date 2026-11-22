@@ -19,7 +19,10 @@ for(const [start,era] of [[1200,'medieval'],[1500,'renaissance'],[1700,'industri
   const restored=copy(game(l)).active;assert.deepEqual(restored,l);
   for(let i=0;i<8&&!l.ended;i++){
     clear(l);clear(restored);assert(E.advance(l));assert(E.advance(restored));assert.deepEqual(l,restored);
-    if(start<1900&&l.event.id)assert(l.event.id.startsWith('era_'));
+    if(start<1900&&l.event.id){
+      const event=E.stories[l.event.id],year=E.calendar(l);
+      assert(Number.isInteger(event.minYear)&&event.minYear<=year&&(event.maxYear===undefined||event.maxYear>=year),'calendar-bounded historical event');
+    }
   }
 }
 for(const year of [1500,1700,1900,2000,2050]){

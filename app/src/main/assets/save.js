@@ -28,7 +28,9 @@
         }
         for(const module of [engine.faithMovements,engine.faithPersonal,engine.faithInstitutions,engine.faithLegacy,engine.faithCommunity,engine.faithEncounters])module.validate(l);
         if(l.sim.realism!==undefined&&!['guided','historical'].includes(l.sim.realism))throw Error('Unknown historical realism setting.');
-        const {contractRole,experienceYear,payReviewYear,roleYears,legacyPayFactor}=l.world;
+        const {contractRole,experienceYear,payReviewYear,roleYears,legacyPayFactor,offerTown}=l.world;
+        if(offerTown!==undefined&&(typeof offerTown!=='string'||!own(engine.sim.geography.cities,offerTown)||
+            !own(engine.occupations.entries,l.job)||contractRole!==l.job))throw Error('Invalid employment market.');
         if(legacyPayFactor!==undefined&&(!Number.isFinite(legacyPayFactor)||legacyPayFactor<.5||legacyPayFactor>2||contractRole!==undefined))throw Error('Invalid inherited pay basis.');
         if(contractRole!==undefined&&contractRole!==null&&(typeof contractRole!=='string'||!own(engine.jobs,contractRole)))throw Error('Invalid employment contract.');
         for(const y of [experienceYear,payReviewYear])if(y!==undefined&&(!Number.isSafeInteger(y)||y<l.born||y>l.born+l.age))throw Error('Invalid career year.');
@@ -53,6 +55,7 @@
         }
         for(const [id,a] of Object.entries(l.world.owned))if(!validHolding(id,a))throw Error('Invalid asset record.');
         engine.sim.validateFinance(l);
+        for(const system of [engine.education,engine.schoolCommunity,engine.pathways,engine.performanceStudio])system.validate(l);
         const x=l.sim.expansion;if(x){
           for(const field of ['companies','policies','hobbies','permits','portfolio','family'])if(!x[field]||typeof x[field]!=='object'||Array.isArray(x[field]))throw Error('Incomplete expansion record.');
           for(const field of ['certs','passports','awards'])if(!Array.isArray(x[field]))throw Error('Incomplete expansion record.');

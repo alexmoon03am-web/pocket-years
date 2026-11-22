@@ -167,7 +167,9 @@ tab(travel,'assets');travel.click('sheet','sell-'+deed.id);assert(text(travel).i
 travel.click('central');settle(travel);tab(travel,'activities');travel.click('sheet','hub-travel');travel.click('sheet','destinations');
 travel.change('town','kyoto');travel.click('sheet','move-kyoto');assert(text(travel).includes('Domestic move'));
 travel.click('move','kyoto');clean(travel);assert.equal(internal(travel).town,'kyoto');
-const worldBirth=start(new Map(),{scripts});worldBirth.click('sheet','menu');assert(text(worldBirth).includes('v1.2'));
+const worldBirth=start(new Map(),{scripts});worldBirth.click('sheet','menu');
+const releaseVersion=fs.readFileSync(path.join(__dirname,'../app/build.gradle'),'utf8').match(/versionName '([^']+)'/)[1];
+assert(text(worldBirth).includes('v'+releaseVersion));
 worldBirth.click('new-form');worldBirth.el('person-name').value='Noa Rivera';
 worldBirth.input('place-search','Egypt');worldBirth.key('Enter');assert.equal(worldBirth.el('country').value,'EG');
 worldBirth.input('place-search','Narau typo');assert(text(worldBirth).includes('No matching'));worldBirth.key('Escape');assert(worldBirth.el('person-name'));

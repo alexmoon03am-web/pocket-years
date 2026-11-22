@@ -186,7 +186,7 @@ def verify(path):
         assert picker[:8]==b'dex\n035\0' and u32(picker,32)==len(picker)
         assert hashlib.sha1(picker[32:]).digest()==picker[12:32]
         assert all(token in picker for token in (b'android.intent.action.CREATE_DOCUMENT',b'android.intent.action.OPEN_DOCUMENT',b'JavascriptInterface',b'PocketFiles',b'pending-import.json'))
-        assert verify_xml(z.read('AndroidManifest.xml'),require_portrait=True)==('1.2.3',18)
+        assert verify_xml(z.read('AndroidManifest.xml'),require_portrait=True)==('1.3.0',19)
         verify_resources(z.read('resources.arsc'))
         for name in ('resources.arsc','classes.dex','classes2.dex','res/drawable-nodpi/ic_launcher.png'):
             info=z.getinfo(name);o=info.header_offset

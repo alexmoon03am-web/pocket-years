@@ -48,6 +48,14 @@ def get_identity(directory):
         with os.fdopen(os.open(dest,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600),'wb') as f:f.write(data)
     return key,cert
 
+def release_identity(keystore, password_file, previous):
+    """Use the established signer only after verifying the previous APK signature."""
+    from verify_apk import signature
+    key,cert,_=pkcs12.load_key_and_certificates(keystore.read_bytes(),password_file.read_bytes())
+    if not key or not cert or cert.fingerprint(hashes.SHA256())!=signature(previous.read_bytes()):
+        raise ValueError('Release signer does not match the reference APK.')
+    return key,cert
+
 def jar_sign(files,key,cert):
     def digest(data):return base64.b64encode(hashlib.sha256(data).digest())
     def section(name,h):return b'Name: '+name.encode()+b'\r\nSHA-256-Digest: '+h+b'\r\n\r\n'
@@ -94,7 +102,7 @@ def apk_sign(raw,key,cert):
     end=bytearray(sections[2]);struct.pack_into('<I',end,16,cd+len(block))
     return sections[0]+block+sections[1]+end
 
-def build(out,identity_dir):
+def build(out,identity_dir,release=None):
     main=ROOT/'app/src/main'
     xml,package=manifest(main,ROOT/'app/build.gradle')
     with tempfile.TemporaryDirectory() as temp:
@@ -104,7 +112,8 @@ def build(out,identity_dir):
     for folder in ('res','assets'):
         for file in sorted((main/folder).rglob('*')):
             if file.is_file():files[file.relative_to(main).as_posix()]=file.read_bytes()
-    key,cert=get_identity(identity_dir);files={**jar_sign(files,key,cert),**files}
+    key,cert=release if release is not None else get_identity(identity_dir)
+    files={**jar_sign(files,key,cert),**files}
     out.parent.mkdir(parents=True,exist_ok=True);out.write_bytes(apk_sign(zip_bytes(files),key,cert))
     print('Built',out.name,'from MainActivity.java,',len(bytecode),'DEX bytes,',len(files),'package entries.')
     print('APK size',out.stat().st_size,'bytes. SHA-256',hashlib.sha256(out.read_bytes()).hexdigest())
@@ -112,4 +121,12 @@ if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--out',type=Path,default=ROOT/'build/PocketYears.apk')
     parser.add_argument('--identity-dir',type=Path,default=Path.home()/'.android/pocketyears-prototype')
-    args=parser.parse_args();build(args.out,args.identity_dir)
+    parser.add_argument('--release-keystore',type=Path,help='Existing PKCS#12 release identity')
+    parser.add_argument('--password-file',type=Path,help='File containing the exact keystore password')
+    parser.add_argument('--upgrade-from',type=Path,help='Previously distributed signed APK')
+    args=parser.parse_args()
+    signing=(args.release_keystore,args.password_file,args.upgrade_from)
+    if any(signing) and not all(signing):
+        parser.error('A release needs --release-keystore, --password-file and --upgrade-from together.')
+    identity=release_identity(*signing) if all(signing) else None
+    build(args.out,args.identity_dir,identity)

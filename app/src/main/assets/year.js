@@ -130,7 +130,9 @@
     function campus(l){
       const school=M.school(l),program=l.sim.program;
       const name=!l.ended&&!l.sim.prison&&school.name;
-      const current=name?[l.town,name,program?program.end:''].join('/'):null;
+      // An assessment can delay completion without changing the institution or its people.
+      const enrollment=program?.pathway?[program.field,program.start].join('/'):program?.end??'';
+      const current=name?[l.town,name,enrollment].join('/'):null;
       if((l.sim.campusKey||null)===current)return;
       for(const p of Object.values(l.people)){
         if(!p.atSchool)continue;p.atSchool=false;

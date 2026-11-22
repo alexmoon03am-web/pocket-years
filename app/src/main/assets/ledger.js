@@ -4,6 +4,7 @@
   const PocketEconomy=typeof module!=='undefined'&&module.exports?require('./economy.js').PocketEconomy:root.PocketEconomy;
   const PocketExpansion=typeof module!=='undefined'&&module.exports?require('./expansion.js').PocketExpansion:root.PocketExpansion;
   const H=typeof module!=='undefined'&&module.exports?require('./history-economy.js').PocketHistoryEconomy:root.PocketHistoryEconomy;
+  const studio=typeof module!=='undefined'&&module.exports?require('./performance-studio.js').PocketPerformanceStudio:root.PocketPerformanceStudio;
   function tax(gross){
     const brackets=[[13000,0],[36000,.12],[85000,.20],[155000,.28],[Infinity,.34]];
     let total=0,lower=0;
@@ -57,8 +58,12 @@
       const x=s.expansion,e=x?PocketEconomy.local(l,l.town,earnedAge):null;
       const periodBudget=H.historical(l,earnedAge)||(H.enabled(l)&&H.year(l,earnedAge)>=2050);
       const period=periodBudget?H.profile(l,earnedAge):null;
-      const pay=working?PocketEconomy.salary(l,l.job,jobs,earnedAge):0,pension=l.job==='retired'?pay:0;
-      const wages=adult?pay-pension:H.youthPay(l,earnedAge)||(shift?shift[1]:0),side=adult&&!s.prison?(s.sideHustle||0)+(s.expansion?.royalties||0):0;
+      const pay=working?PocketEconomy.salary(l,l.job,jobs,earnedAge):0;
+      const pensionerStudying=l.job==='student'&&s.studyPension!==undefined;
+      const pension=l.job==='retired'?pay:working&&pensionerStudying?s.studyPension:0;
+      const wages=adult?(l.job==='retired'||pensionerStudying?0:pay):H.youthPay(l,earnedAge)||(shift?shift[1]:0);
+      const performanceIncome=studio.pay(l,earnedAge);
+      const side=adult&&!s.prison?(s.sideHustle||0)+(s.expansion?.royalties||0)+performanceIncome:0;
       const rent=adult?world.rent(l,earnedAge):0,yieldIncome=adult?Math.floor((s.fund||0)*(e?e.yield:.035)):0;
       const company=x&&adult?PocketExpansion.businessYear(l,earnedAge):{income:0,loss:0,rows:[]};
       const recurring=PocketExpansion.expenses(l,earnedAge);
@@ -138,7 +143,7 @@
       if(unmet)warnings.push('The credit limit is reached. Some essential costs will go unmet.');
       else if(arrears)warnings.push('Cash will run out. The remaining bills will use household credit.');
       if(foreclosures.length)warnings.push('A lender will sell collateral this year.');
-      return {wages,pension,side,rent,yieldIncome,gross,tax:taxes,...home,upkeep,interest,payment,payments,arrears,housingArrears,uncovered:unmet,foreclosures,warnings,net:available-l.cash,loans,...(x?{...recurring,businessIncome:company.income,operatingLoss:company.loss,businessRows:company.rows,skipped}: {})};
+      return {wages,pension,side,...(performanceIncome?{performanceIncome}:{}),rent,yieldIncome,gross,tax:taxes,...home,upkeep,interest,payment,payments,arrears,housingArrears,uncovered:unmet,foreclosures,warnings,net:available-l.cash,loans,...(x?{...recurring,businessIncome:company.income,operatingLoss:company.loss,businessRows:company.rows,skipped}: {})};
     }
     function settle(l,earnedAge=l.age){
       const prior=l.sim.lastBudget,{loans,...b}=budget(l,earnedAge);l.cash+=b.net;l.sim.loans=loans;

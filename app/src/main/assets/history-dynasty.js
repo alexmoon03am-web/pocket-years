@@ -4,6 +4,8 @@
   const node=typeof module!=='undefined'&&module.exports;
   const M=node?require('./model.js').PocketModel:root.PocketModel;
   const G=node?require('./geography.js').PocketGeography:root.PocketGeography;
+  const education=node?require('./education.js').PocketEducation:root.PocketEducation;
+  const occupations=node?require('./occupations.js').PocketOccupations:root.PocketOccupations;
   const year=l=>l.born+l.age;
   function faith(){return node?require('./faith-legacy.js').PocketFaithLegacy:root.PocketFaithLegacy;}
   const catalog=[
@@ -171,6 +173,16 @@
     }
   }
   const isArchive=r=>r?.archiveRecord===1;
+  function personalRecord(l){
+    const studies=education.records(l).map(({title,year,honors})=>({title,year,honors}));
+    const performed=Object.entries(l.sim.performanceStudio?.tracks||{}).filter(([,r])=>r.completed>0)
+      .map(([id,r])=>({id,seasons:r.completed,audience:r.following}));
+    const employment=occupations.entries[l.job];
+    return {
+      ...(studies.length?{studies}:{}),...(performed.length?{performed}:{}),
+      ...(employment?{lastSpecialistRole:occupations.rank(l,l.job)+' · '+employment.title}:{})
+    };
+  }
   function record(l,world,jobs){
     if(isArchive(l))return l;
     const s=l.sim,job=s.peak?.title||l.job,career=jobs?.[job]?.[0]||job||'No recorded occupation';
@@ -179,8 +191,8 @@
     const exhibits=(s.dynasty?.collection||[]).filter(e=>s.dynasty.curators[e.first]?.id===l.id).map(e=>e.title);
     const log=l.log.map(e=>{const row={...e};if(row.delta&&!Object.keys(row.delta).length)delete row.delta;return row;});
     const faithLegacy=faith().archive(l);
-    return {archiveRecord:1,...(faithLegacy?{faithLegacy}:{}),historicalRules:!!s.timeline?.historicalRules,line:s.dynasty?.line||l.id,id:l.id,name:l.name,born:l.born,age:l.age,ended:!!l.ended,town:l.town,
-      career,wealth:world?.netWorth?world.netWorth(l):l.cash,cause:s.cause||'',achievements:(l.keepsakes||[]).map(k=>k.title),
+    return {archiveRecord:1,...personalRecord(l),...(faithLegacy?{faithLegacy}:{}),historicalRules:!!s.timeline?.historicalRules,line:s.dynasty?.line||l.id,id:l.id,name:l.name,born:l.born,age:l.age,ended:!!l.ended,town:l.town,
+      career,wealth:world?.netWorth?world.netWorth(l):l.cash,cause:s.cause||'',achievements:[...new Set([...(l.keepsakes||[]).map(k=>k.title),...(s.expansion?.awards||[])])],
       relationships:Object.values(l.people).filter(p=>p.met&&(M.isFamily(p)||['Spouse','Partner','Engaged partner','Friend','Childhood friend'].includes(p.role)))
         .filter(p=>p.role!=='Relative'||p.bond>=75).map(p=>p.role+' · '+p.fullName),
       possessions:[...new Set([...assets,...businesses,...exhibits])],events:(s.chronicleWorld?.events||[]).filter(e=>e.witness?e.witness===l.id:e.year>=l.born&&e.year<=year(l)).map(e=>e.year+' · '+e.title),log};
@@ -194,6 +206,13 @@
       typeof r.name!=='string'||typeof r.id!=='string'||typeof r.line!=='string'||typeof r.career!=='string'||!Number.isFinite(r.wealth)||
       !Array.isArray(r.log)||r.log.some(e=>!e||!Number.isInteger(e.age)||typeof e.title!=='string'||typeof e.body!=='string')||
       ['achievements','relationships','possessions','events'].some(k=>!Array.isArray(r[k])||r[k].some(v=>typeof v!=='string')))throw Error('Invalid family archive.');
+    const title=v=>typeof v==='string'&&v.length>0&&v.length<=160;
+    if(r.studies!==undefined&&(!Array.isArray(r.studies)||r.studies.length>128||r.studies.some(s=>!s||!title(s.title)||typeof s.honors!=='boolean'||
+      !(s.year===null||Number.isSafeInteger(s.year)&&s.year>=r.born&&s.year<=r.born+r.age))))throw Error('Invalid archived qualification.');
+    if(r.performed!==undefined&&(!Array.isArray(r.performed)||r.performed.length>3||r.performed.some(s=>!s||!['acting','music','sport'].includes(s.id)||
+      !Number.isSafeInteger(s.seasons)||s.seasons<1||s.seasons>r.age||!Number.isSafeInteger(s.audience)||s.audience<0||s.audience>1000000)||
+      new Set(r.performed.map(s=>s.id)).size!==r.performed.length))throw Error('Invalid archived performance record.');
+    if(r.lastSpecialistRole!==undefined&&!title(r.lastSpecialistRole))throw Error('Invalid archived occupation.');
     faith().validateArchive(r.faithLegacy);return r;
   }
   function validate(l){
@@ -204,6 +223,6 @@
         !Number.isInteger(e.year)||!Number.isInteger(e.cared)||!Number.isInteger(e.first)||e.first<0||e.first>=d.curators.length||!Number.isFinite(e.base)||e.base<0||
         !Number.isInteger(e.condition)||e.condition<0||e.condition>100)||new Set(d.collection.map(e=>e.id)).size!==d.collection.length)throw Error('Invalid family collection.');
   }
-  root.PocketHistoryDynasty={initialize,items,offers,estimatedValue,actions,perform,annual,inherit,archive:record,record,isArchive,validateArchive,validate,
+  root.PocketHistoryDynasty={initialize,items,offers,estimatedValue,actions,perform,annual,inherit,archive:record,record,personalRecord,isArchive,validateArchive,validate,
     journal:r=>r.log||[],familyArchive};
 })(typeof module!=='undefined'&&module.exports?module.exports:window);
