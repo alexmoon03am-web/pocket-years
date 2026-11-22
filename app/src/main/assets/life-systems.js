@@ -251,7 +251,7 @@
         const scale=era.historical(l)?era.profile(l).food*era.profile(l).cost/7500:1;
         apply(l,{karma:-5,notoriety:4,craziness:2});
         if(random(l)<Math.min(.95,o.chance+l.hidden.notoriety*.0015)){
-          l.sim.court={id,term:o.term,fine:Math.max(1,Math.round(o.fine*scale))};
+          openCase(l,id);
           return finish(l,id,'Justice','Summoned to court','I must answer a charge before my next birthday.',{joy:-5},{reputation:-7});
         }
         const reward=Math.round(o.reward*scale);
@@ -288,6 +288,7 @@
       if(a.group==='custody'&&!l.sim.prison)return 'Only available in custody';
       if(l.sim.prison && a.group!=='custody' && id!=='doctor')return 'In custody';
       if(l.sim.court)return 'Hearing pending';
+      if(api.wanted(l)&&a.group==='crime')return 'Resolve your outstanding sentence first';
       return (a.rule&&a.rule(l))||actionReason(l,'sim-'+id);
     }
     function description(l,id){
@@ -318,6 +319,13 @@
       api.campus(l);result.delta=M.diff(before,M.metrics(l,world.netWorth,budget));l.log[l.log.length-1].delta=result.delta;
       if(id==='skip-class')api.schoolAbsence(l);
       return result;
+    }
+    function openCase(l,id){
+      if(!Object.prototype.hasOwnProperty.call(offences,id)||l.sim.court||l.ended)return false;
+      const offence=offences[id];
+      const scale=era.historical(l)?era.profile(l).food*era.profile(l).cost/7500:1;
+      l.sim.court={id,term:offence.term,fine:Math.max(1,Math.round(offence.fine*scale))};
+      return true;
     }
     function court(l,plea){
       const c=l.sim.court;if(!c||l.ended||!['plea','trial','counsel'].includes(plea))return null;
@@ -441,7 +449,7 @@
       if(children(l).length>=3)return 'Heart of the family';
       return null;
     }
-    return {initialize,populateFamily,majors,programs,places,geography,movingFee,moveFare,childBirthplace,identities,petBreeds,breeds,children,debt,ageOf,fundingReason,budget,settle,hardshipOptions,relief,reliefPreview,validateFinance,borrowingCapacity,mortgageReason,mortgage,startCourse,addLoan,estate,tax,downPayment,licenseReason,licenseFee,drivingTest,takeTest,moveReason,relocate,actions,options,description,reason,perform,court,birthday,deliver,setWill,share,ribbon,money};
+    return {initialize,populateFamily,majors,programs,places,geography,movingFee,moveFare,childBirthplace,identities,petBreeds,breeds,children,debt,ageOf,fundingReason,budget,settle,hardshipOptions,relief,reliefPreview,validateFinance,borrowingCapacity,mortgageReason,mortgage,startCourse,addLoan,estate,tax,downPayment,licenseReason,licenseFee,drivingTest,takeTest,moveReason,relocate,actions,options,description,reason,perform,court,openCase,birthday,deliver,setWill,share,ribbon,money};
   }
   root.PocketSystems={create,places,identities};
 })(typeof module!=='undefined'&&module.exports?module.exports:window);

@@ -9,7 +9,7 @@ function parse(html){
   if(p.status)throw Error(p.stderr);const v=JSON.parse(p.stdout);cache.set(html,v);return v;
 }
 function start(store=new Map(),opts={}){
-  const docEvents={},winEvents={},frames=new Map(),animations=new Set(),records=[],mediaWatch=[];
+  const docEvents={},winEvents={},frames=new Map(),timers=new Map(),animations=new Set(),records=[],mediaWatch=[];
   let active=null,now=0,counter=0,scroll=0;
   class El{
     constructor(data=['div',{},'',[],''],parent=null){
@@ -60,7 +60,7 @@ function start(store=new Map(),opts={}){
   }
   const html=new El(['html',{},'',[],'']),body=new El(['body',{},'',[],''],html);html.appendChild(body);
   for(const id of ['shell','overlay','status'])body.appendChild(new El(['div',{id},'',[],'']));
-  const doc={documentElement:html,body,get activeElement(){return active;},getElementById:id=>body.querySelector('#'+id),
+  const doc={documentElement:html,body,hidden:false,get activeElement(){return active;},getElementById:id=>body.querySelector('#'+id),
     querySelector:s=>body.querySelector(s),createElement:tag=>new El([tag,{},'',[],'']),addEventListener:(k,f)=>docEvents[k]=f};
   const loc={hash:opts.hash||''},hist=[{url:loc.hash,state:null}],media={matches:!!opts.reduce,addEventListener:(type,fn)=>mediaWatch.push(fn)};
   let cursor=0,pending=null;
@@ -72,6 +72,7 @@ function start(store=new Map(),opts={}){
   const history={get state(){return hist[cursor].state;},replaceState:(state,_,url)=>{if(opts.noHistory)throw Error('restricted');hist[cursor]={url,state};loc.hash=url;},
     pushState:(state,_,url)=>{if(opts.noHistory)throw Error('restricted');hist.splice(cursor+1);hist.push({url,state});cursor++;loc.hash=url;},back};
   const ctx={document:doc,location:loc,history,matchMedia:()=>media,localStorage:{getItem:k=>store.get(k)||null,setItem:(k,v)=>store.set(k,v)},
+    performance:{now:()=>now},setTimeout:(fn,delay)=>{const id=++counter;timers.set(id,[fn,now+delay]);return id;},clearTimeout:id=>timers.delete(id),
     requestAnimationFrame:f=>{const k=++counter;frames.set(k,f);return k;},cancelAnimationFrame:k=>frames.delete(k),scrollTo:(_x,y)=>scroll=y,addEventListener:(k,f)=>winEvents[k]=f,console};
   if(opts.fileBridge)ctx.PocketFiles=opts.fileBridge;
   if(opts.browserFiles)Object.assign(ctx,opts.browserFiles);
@@ -80,7 +81,7 @@ function start(store=new Map(),opts={}){
   const sources=opts.scripts||files.map(f=>fs.readFileSync(path.join(base,f),'utf8'));
   for(const s of sources)vm.runInContext(s,ctx);
   function flushBack(){const fn=pending;pending=null;if(fn)fn();}
-  function tick(next=600){for(let i=0;i<next;i+=16){now+=16;const fns=[...frames.values()];frames.clear();fns.forEach(f=>f(now));for(const a of [...animations])if(a.end<=now)a.finish();}}
+  function tick(next=600){for(let i=0;i<next;i+=16){now+=16;const fns=[...frames.values()];frames.clear();fns.forEach(f=>f(now));for(const [id,[fn,at]] of [...timers])if(now>=at&&timers.delete(id))fn();for(const a of [...animations])if(a.end<=now)a.finish();}}
   function visible(){const mount=doc.getElementById('overlay').children.find(el=>!el.a.inert&&el.getAttribute('aria-hidden')!=='true');return mount||doc.getElementById('shell');}
   function button(ac,key){return visible().querySelectorAll('button[data-do]').find(b=>b.dataset.do===ac&&(key===undefined||b.dataset.key===String(key)));}
   function dispatch(target,detail=1,timeStamp){docEvents.click({target,detail,timeStamp});}
@@ -91,6 +92,7 @@ function start(store=new Map(),opts={}){
   function prefer(v){media.matches=v;mediaWatch.forEach(f=>f());}
   function pointer(type,target,y,time,id=1){docEvents[type]({target,pointerId:id,clientY:y,timeStamp:time,isPrimary:true,button:0});}
   return {click,button,dispatch,doc,store,loc,history,tick,flushBack,change,input,submit,prefer,pointer,records,visible,animations,frames,
+    setHidden:hidden=>{doc.hidden=hidden;docEvents.visibilitychange?.();},
     nativeReady:()=>ctx.pocketFileReady(),chooseFile:file=>{const el=doc.getElementById('backup-file');el.files=[file];docEvents.change({target:el});},
     state:()=>{const key='studio.pocketyears.save.v1',n=Number(store.get(key+'.selected')||1);return JSON.parse(store.get(n===1?key:key+'.slot.'+n));},el:id=>doc.getElementById(id),
     key:k=>docEvents.keydown({key:k,preventDefault(){}})};

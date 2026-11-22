@@ -73,7 +73,7 @@ def string_pool(c):
         strings.append(c[o:o+length].decode())
     return strings
 
-def verify_xml(b, *, require_portrait=False):
+def verify_xml(b, *, require_portrait=False, require_haptics=False):
     assert u16(b,0)==3 and u32(b,4)==len(b)
     entries=[];stack=[];strings=[];resource_ids=[]
     enum_ids={'screenOrientation':0x0101001e,'appCategory':0x01010545}
@@ -93,7 +93,14 @@ def verify_xml(b, *, require_portrait=False):
             entries.append((tag,attrs));stack.append(tag)
         if kind==0x0103:assert strings[u32(c,20)]==stack.pop()
     assert not stack
-    assert [n for n,_ in entries]==['manifest','uses-sdk','application','activity','intent-filter','action','category']
+    tags_in_order=[n for n,_ in entries]
+    expected=['manifest','uses-sdk','application','activity','intent-filter','action','category']
+    if 'uses-permission' in tags_in_order:
+        expected.insert(2,'uses-permission')
+        assert dict(entries)['uses-permission']=={'name':'android.permission.VIBRATE'}
+    assert tags_in_order==expected
+    if require_haptics:
+        assert 'uses-permission' in tags_in_order
     tags=dict(entries);manifest=tags['manifest'];assert manifest['package']=='studio.pocketyears.game'
     assert tags['uses-sdk']=={'minSdkVersion':26,'targetSdkVersion':34}
     assert tags['application']['label']=='Pocket Years' and tags['application']['icon']==0x7f010000
@@ -186,7 +193,7 @@ def verify(path):
         assert picker[:8]==b'dex\n035\0' and u32(picker,32)==len(picker)
         assert hashlib.sha1(picker[32:]).digest()==picker[12:32]
         assert all(token in picker for token in (b'android.intent.action.CREATE_DOCUMENT',b'android.intent.action.OPEN_DOCUMENT',b'JavascriptInterface',b'PocketFiles',b'pending-import.json'))
-        assert verify_xml(z.read('AndroidManifest.xml'),require_portrait=True)==('1.3.0',19)
+        assert verify_xml(z.read('AndroidManifest.xml'),require_portrait=True,require_haptics=True)==('1.3.2',21)
         verify_resources(z.read('resources.arsc'))
         for name in ('resources.arsc','classes.dex','classes2.dex','res/drawable-nodpi/ic_launcher.png'):
             info=z.getinfo(name);o=info.header_offset

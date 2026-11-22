@@ -1,5 +1,6 @@
 'use strict';
 const {expectedLegacySnapshot}=require('./legacy_projection.cjs');
+const {takeExam}=require('./minigame_test_helpers.cjs');
 const assert=require('node:assert/strict'),path=require('node:path'),fs=require('node:fs');
 const {start,base}=require('./interface_host.cjs'),E=require(path.join(base,'engine.js')).PocketEngine,S=E.sim,W=E.world;
 const K='studio.pocketyears.save.v1',text=u=>u.visible().textContent,clean=u=>{u.flushBack();u.tick();};
@@ -64,7 +65,8 @@ assert(internal(a).used.includes('sim-surgery'));
 a.click('sheet','hub-nightlife');a.click('sheet','do-casino');a.click('sim','casino');clean(a);assert(internal(a).used.includes('sim-casino'));
 a.click('sheet','matches');const selected=a.button('sheet','match-1').querySelector('strong').textContent;a.click('sheet','match-1');assert(text(a).includes(selected));icons(a);
 const beforeMatch=a.state().active.bankBalance;a.click('match','1');clean(a);assert.equal(a.state().active.bankBalance,beforeMatch-15);
-a.click('sheet','hub-travel');a.click('sheet','license');a.click('license','stop');clean(a);assert(internal(a).sim.license);
+const driver=start(new Map(a.store),{hash:'#activities/hub-travel',asyncBack:true});
+driver.click('sheet','license');driver.click('mini-start','driving~0');takeExam(driver);driver.click('ack','minigame');clean(driver);assert(internal(driver).sim.license);
 tab(a,'career');a.click('sheet','jobs');a.click('jobs-filter','all');assert(a.button('sheet','job-physician').disabled);a.click('sheet','job-barista');assert(text(a).includes('interviewer'));a.click('interview','barista~example');clean(a);assert.equal(internal(a).log.slice(-1)[0].kind,'Career');
 tab(a,'school');a.click('sheet','hub-education');a.click('sheet','do-course-science');a.click('funding','course-science~loan');clean(a);
 assert.equal(a.state().active.major,'science');assert.equal(a.state().active.currentSchool,'City University');

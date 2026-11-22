@@ -463,6 +463,7 @@
     function visitPlan(life){
       const keys=[],seen=new Set();
       if(life.ended||api.blocking(life))return {keys,reason:life.ended?'Life complete':'Finish the current decision'};
+      if(life.sim.prison)return {keys,reason:'Arrange one supervised visit at a time'};
       for(const [key,p] of Object.entries(life.people)){
         if(!inContact(p)||seen.has(p.id||key))continue;
         seen.add(p.id||key);
@@ -495,6 +496,10 @@
       function add(id,title,text,ic,block,cost){
         const used=id==='visit'?'visit-'+key:'social-'+key+'-'+id;
         items.push({id,title,desc:text,icon:ic,reason:block||actionReason(life,used,cost||0)});
+      }
+      if(life.sim.prison){
+        add('visit','Request a supervised visit','Meet '+person.name+' during visiting hours.','people');
+        return items;
       }
       if(person.atSchool&&person.job==='Student'){
         if(person.role==='Classmate')add('befriend','Befriend','Ask to hang out after class.','people');
@@ -553,7 +558,10 @@
         title=yes?'Dating '+p.name:'Turned down';text=yes?'They said yes. I both checked my calendars.':p.name+' would rather keep things as they are.';bond=yes?9:-3;delta={joy:yes?6:-3};
       }else if(id==='visit'){
         title='Time with '+p.name;bond=visitGain;delta=visitEffects(life,1);
-        text=life.age<2?p.name+' showed me the birds outside the kitchen window.':p.role==='Child'&&life.age-p.bornAt<5?p.name+' and I built a very unsteady tower of wooden blocks.':'I spent the afternoon with '+p.name+'. Only one of us checked the time.';
+        if(life.sim.prison){
+          title='Supervised visit with '+p.name;
+          text=p.name+' came during visiting hours. We caught up in the visiting room.';
+        }else text=life.age<2?p.name+' showed me the birds outside the kitchen window.':p.role==='Child'&&life.age-p.bornAt<5?p.name+' and I built a very unsteady tower of wooden blocks.':'I spent the afternoon with '+p.name+'. Only one of us checked the time.';
       }else if(id==='compliment'){
         title='A kind word for '+p.name;text='I complimented '+p.name+'. They asked me to repeat it.';bond=7;delta={bonds:4,joy:2};
       }else if(id==='argue'){

@@ -10,6 +10,7 @@
   const occupations=node?require('./occupations.js').PocketOccupations:root.PocketOccupations;
   const schoolFactory=node?require('./school-community.js').PocketSchoolCommunity:root.PocketSchoolCommunity;
   const pathways=node?require('./pathways-stories.js').PocketPathwaysStories:root.PocketPathwaysStories;
+  const minigameRules=node?require('./minigames.js').PocketMinigames:root.PocketMinigames;
   const performanceStudio=node?require('./performance-studio.js').PocketPerformanceStudio:root.PocketPerformanceStudio;
   const historyWorld=node?require('./history-world.js').PocketHistoryWorld:root.PocketHistoryWorld;
   const historyEconomy=node?require('./history-economy.js').PocketHistoryEconomy:root.PocketHistoryEconomy;
@@ -45,9 +46,9 @@
   const isHistorical=l=>!!l.sim?.timeline?.historicalRules&&calendar(l)<2000;
   const birthYear=opts=>opts.birthYear??opts.born;
   const validStart=y=>Number.isInteger(y)&&y>=1200&&y<=3000;
-  function context(){return {jobs,world,sim,log,apply,blocking,random,actionReason,keepsake,campus:l=>year.campus(l)};}
+  function context(){return {jobs,world,sim,log,apply,blocking,random,actionReason,keepsake,campus:l=>year.campus(l),category:occupations.categoryOf,sector:PocketExpansionData.sector,studio:performanceStudio};}
   function historyPerform(l,area,id){
-    if(l.ended||blocking(l))return null;
+    if(l.ended||blocking(l)||area==='work'&&id.startsWith('job-')&&minigames.wanted(l))return null;
     return area==='museum'?historyDynasty.perform(l,id,context()):historyEconomy.perform(l,area,id,context());
   }
   function birthplace(l){
@@ -97,10 +98,20 @@
   const loveNames = ['Charlie','Alex','Marlowe','Blair','Billie','Noa','Ash','Drew'];
   const clamp = v => Math.min(100,Math.max(0,v));
   const world=worldFactory.createWorld({jobs,apply,log,clamp,random,rngItem,actionReason,keepsake,cleanName,blocking,staff:l=>year.workplace(l)});
-  const sim=systemsFactory.create({world,jobs,apply,log,clamp,random,rngItem,actionReason,cleanName,blocking,campus:l=>year.campus(l),schoolAbsence:l=>schoolCommunity.absence(l),moved:(l,from,to)=>expansion.moved(l,from,to),arrived:faithInstitutions.initialize,dependence:(l,k,n)=>year.addiction(l,k,n)});
+  const sim=systemsFactory.create({world,jobs,apply,log,clamp,random,rngItem,actionReason,cleanName,blocking,wanted:minigameRules.wanted,campus:l=>year.campus(l),schoolAbsence:l=>schoolCommunity.absence(l),moved:(l,from,to)=>expansion.moved(l,from,to),arrived:faithInstitutions.initialize,dependence:(l,k,n)=>year.addiction(l,k,n)});
   const year=yearFactory.create({random,rngItem,apply,log,world,sim,jobs});
   const expansion=PocketExpansion.create({world,sim,jobs,log,apply,actionReason,blocking});
   const schoolCommunity=schoolFactory.create(context());
+  const minigames={
+    active:minigameRules.active,current:minigameRules.current,revision:minigameRules.revision,wanted:minigameRules.wanted,
+    settings:minigameRules.settings,settingsValues:minigameRules.settingsValues,validateSettings:minigameRules.validateSettings,
+    entry:(l,id)=>minigameRules.entry(l,id,context()),
+    entries:(l,group)=>minigameRules.entries(l,context(),group),
+    start:(l,id,opts,expected)=>minigameRules.start(l,id,opts,expected,context()),
+    input:(l,expected,command)=>minigameRules.choices(l,expected,command,context()),
+    surrender:(l,expected)=>minigameRules.surrender(l,expected,context()),
+    validate:l=>minigameRules.validate(l,context())
+  };
   const educationApply=(l,id,method)=>education.apply(l,id,method,context());
   const educationAction=(l,id)=>education.action(l,id,context());
   const occupationChoice=(l,id)=>occupations.decide(l,id,context());
@@ -266,12 +277,12 @@
     }
     return life;
   }
-  function blocking(l){if(!l.sim)return null;if(l.sim.review)return 'outcome';if(l.sim.court)return 'court';return l.event&&!l.event.resolved?'decision':null;}
+  function blocking(l){if(!l.sim)return null;if(l.sim.review)return 'outcome';if(l.sim.court)return 'court';if(minigames.active(l))return 'minigame';return l.event&&!l.event.resolved&&events.allowedInCustody(l,stories[l.event.id])?'decision':null;}
   function acknowledge(l){
     if(!l.sim.review)return false;
     l.sim.review=null;
     while(l.eventQueue.length){
-      const next=l.eventQueue.shift();if(!next.person||l.people[next.person]&&model.isAlive(l.people[next.person])){
+      const next=l.eventQueue.shift();if(events.allowedInCustody(l,stories[next.id])&&(!next.person||l.people[next.person]&&model.isAlive(l.people[next.person]))){
         if(!stories[next.id].random||events.eligible(l,stories[next.id])){l.event=next;return true;}
       }
     }
@@ -337,6 +348,7 @@
       if(life.age===18&&life.sim.timeline)delete life.sim.timeline.youthShift;
       performanceStudio.settle(life,earnedAge,context());
       year.conditions(life);
+      minigameRules.annual(life,context());
       schoolCommunity.annual(life);
       expansion.annual(life,b,earnedAge);
       annualFaith(life);
@@ -380,7 +392,8 @@
   function actionReason(life,key,cost=0) {
     if(life.ended)return 'Life complete';
     if(blocking(life))return 'Finish the current decision';
-    if(life.sim && life.sim.prison && !key.startsWith('visit-')&&!key.startsWith('social-')&&!['sim-doctor','sim-library','sim-yard','sim-appeal'].includes(key))return 'In custody';
+    const wanted=minigameRules.blockedReason(life,null,key);if(wanted)return wanted;
+    if(life.sim && life.sim.prison && !key.startsWith('visit-')&&!['sim-doctor','sim-library','sim-yard','sim-appeal'].includes(key))return 'In custody';
     const repeat=['move','read','play','career-study','career-practice','sim-meditate'].includes(key)||key.startsWith('visit-');
     if(life.used.filter(id=>id===key).length>=(repeat?3:1))return repeat?'Try again next year':'Done this year';
     if(cost>life.cash)return 'Need '+(life.sim.timeline?.historicalRules?historyEconomy.money(life,cost):'$'+cost);
@@ -489,5 +502,5 @@
     if(!Number.isInteger(active.age)||!Number.isFinite(active.cash)||!Array.isArray(active.log))throw Error('Incomplete save');
     return {version:4,active,archive,settings:{motion:'system',...(data.settings||{})}};
   }
-  root.PocketEngine={education,educationApply,educationAction,occupations,occupationChoice,schoolCommunity,pathways,pathwayChallenge,performanceStudio,performSeason,faithEncounters,faithCatalog,faithPersonal,faithMovements,faithInstitutions,faithLegacy,faithCommunity,faithPerform,calendar,isHistorical,historyWorld,historyEconomy,historyDynasty,historyPerform,eligibleHeirs,expansion,state,startNext,model,events,year,blocking,acknowledge,encodeGame,decodeGame,stories,statNames,towns,jobs,origins,households,world,sim,continueAs,migrate,makeLife,customizeBirth,copy,chapter,occupation,portrait,decide,advance,actionList,actionReason,act,visit,income,legacyTitle,cleanName,seed};
+  root.PocketEngine={minigames,education,educationApply,educationAction,occupations,occupationChoice,schoolCommunity,pathways,pathwayChallenge,performanceStudio,performSeason,faithEncounters,faithCatalog,faithPersonal,faithMovements,faithInstitutions,faithLegacy,faithCommunity,faithPerform,calendar,isHistorical,historyWorld,historyEconomy,historyDynasty,historyPerform,eligibleHeirs,expansion,state,startNext,model,events,year,blocking,acknowledge,encodeGame,decodeGame,stories,statNames,towns,jobs,origins,households,world,sim,continueAs,migrate,makeLife,customizeBirth,copy,chapter,occupation,portrait,decide,advance,actionList,actionReason,act,visit,income,legacyTitle,cleanName,seed};
 })(typeof module !== 'undefined' && module.exports ? module.exports : window);

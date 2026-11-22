@@ -507,7 +507,7 @@
      ]},
     {id:"prison-friend",title:"Lunch table",body:"A new arrival stands with a tray and nowhere to sit.",label:"In custody",
      rule:{"lifeStage":["prison"]},random:true,weight:4,karmaBias:0,crazinessBias:0,choices:[
-       {"icon":"people","label":"Invite them over","result":"I made room. Lunch was less awkward.","effects":{"bonds":6,"joy":3},"change":{}},
+       {"icon":"people","label":"Offer a seat at your table","result":"I slid my tray over. We ate lunch in the prison dining hall.","effects":{"bonds":6,"joy":3},"change":{}},
        {"icon":"book","label":"Lend them a book","result":"I lent a book. It came back with a useful bookmark.","effects":{"smarts":4,"bonds":3},"change":{}},
        {"icon":"heart","label":"Show them the schedule","result":"They made the next roll call on time.","effects":{"karma":5},"change":{}}
      ]},

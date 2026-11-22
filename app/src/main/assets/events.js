@@ -21,13 +21,15 @@
     if(techYear[event.id]&&y<techYear[event.id])return false;
     return (event.minYear===undefined||y>=event.minYear)&&(event.maxYear===undefined||y<=event.maxYear);
   }
+  function allowedInCustody(l,event){
+    return !l.sim.prison||!!event?.rule?.lifeStage?.includes('prison');
+  }
   function eligible(l,event){
-    if(!fitsYear(l,event))return false;
+    if(!fitsYear(l,event)||!allowedInCustody(l,event))return false;
     const r=event.rule||{};
     if(r.pathGate&&!pathways().eligible(l,r.pathGate))return false;
     if((r.minAge!==undefined&&l.age<r.minAge)||(r.maxAge!==undefined&&l.age>r.maxAge))return false;
     if(r.lifeStage&&!r.lifeStage.includes(M.stage(l)))return false;
-    if(l.sim.prison&&!(r.lifeStage||[]).includes('prison'))return false;
     if(r.requiredTags&&!r.requiredTags.every(t=>l.sim.lifeTags.includes(t)))return false;
     if(r.excludedTags&&r.excludedTags.some(t=>l.sim.lifeTags.includes(t)))return false;
     if(r.requiredStats&&Object.entries(r.requiredStats).some(([k,v])=>!Number.isFinite(stat(l,k))||stat(l,k)<v))return false;
@@ -84,5 +86,5 @@
     if(!opt.branches)return {text:opt.result,effects:opt.effects,change:opt.change};
     return draw(l,opt.branches,b=>b.weight+(b.stat?(stat(l,b.stat)||0)*(b.scale||0):0),random);
   }
-  root.PocketEvents={eligible,fitsYear,draw,queue,choose,stat};
+  root.PocketEvents={eligible,fitsYear,allowedInCustody,draw,queue,choose,stat};
 })(typeof module!=='undefined'&&module.exports?module.exports:window);

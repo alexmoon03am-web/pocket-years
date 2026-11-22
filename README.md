@@ -1,3 +1,19 @@
+# Pocket Years v1.3.2 · Custody social fixes
+
+- In custody, the Relationships screen offers supervised visits with individual contacts. Dating, gifts, group visits and home gatherings resume after release.
+- The prison lunch event now clearly takes place in the dining hall. Outside social events from older saves stay out of custody gameplay.
+
+[Development pull request](https://github.com/alexmoon03am-web/pocket-years/pull/2)
+
+# Pocket Years v1.3.1 · Interactive Life
+
+- Play Prison Escape, Burglary, a two-part Driving Test and career puzzles. Results go straight to your sentence, court record, license, household accounts or job performance.
+- Explore military route drills, timed and untimed sports and music cues, historical commissions and one fictional card game.
+- Set difficulty, touch controls, hints, motion and cue sounds. Switch to skill checks to resolve the same activities without playing the boards.
+- Pause a challenge or reopen the app to continue. Attempts, fees and rewards are saved with protections against replaying earlier results on the same device.
+
+[Android APK](builds/Pocket-Years-v1.3.1.apk?raw=1) · [Controls, test results and follow-up work](qa/v1.3.1/INTERACTIVE-LIFE.md)
+
 # Pocket Years v1.3.0 — Life Expanded
 
 - School now starts with preschool in supported periods. Meet your classmates, join a group, resolve a dispute, and face a hearing if you keep skipping class. A classmate can remember what you did next year.

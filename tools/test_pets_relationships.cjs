@@ -84,7 +84,17 @@ for(const l of [Object.assign(adult(),{ended:true}),Object.assign(adult(),{event
 }
 const nobody=adult();for(const p of Object.values(nobody.people))p.active=false;
 assert(W.visitPlan(nobody).reason);noChange(nobody,()=>W.visitAll(nobody));
-const jailed=adult();jailed.sim.prison=2;assert(E.visit(jailed,'carer'));assert(W.visitAll(jailed));
+const jailed=adult();jailed.sim.prison=2;
+assert.match(E.visit(jailed,'carer').title,/Supervised visit/);
+assert.deepEqual(W.socialOptions(jailed,'carer').map(o=>o.id),['visit']);
+noChange(jailed,()=>W.visitAll(jailed));
+for(const action of ['askout','propose','marry','gift','study-pair','talk']){
+  noChange(jailed,()=>W.social(jailed,'carer',action));
+}
+noChange(jailed,()=>S.perform(jailed,'friend'));
+noChange(jailed,()=>E.expansion.perform(jailed,'family','','holiday'));
+jailed.sim.prison=0;assert(W.visitAll(jailed));
+assert(W.socialOptions(jailed,'carer').some(o=>o.id==='talk'));
 console.log('PASS one journal entry per bulk visit, exact equivalence with individual visits, trust and loyalty, eligibility, repeat limits, birthday reset and pending-decision guards.');
 
 const inline=fs.readFileSync(process.env.POCKET_PREVIEW||path.join(__dirname,'../build/Pocket-Years-Play.html'),'utf8');
